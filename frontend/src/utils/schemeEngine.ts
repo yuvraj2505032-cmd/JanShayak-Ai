@@ -110,8 +110,14 @@ export function evaluateSchemeEligibility(profile: CitizenProfile, scheme: Schem
   // 5. Occupation criteria
   if (scheme.eligibleOccupations && scheme.eligibleOccupations.length > 0) {
     totalWeight += 20;
+    const isSelfEmployedProfile =
+      profile.occupation === 'Self-Employed' || profile.occupation === 'Self-Employed/Shopkeeper';
+    const schemeTargetsSelfEmployed =
+      scheme.eligibleOccupations.includes('Self-Employed') ||
+      scheme.eligibleOccupations.includes('Self-Employed/Shopkeeper');
     const isOccupationMet =
       scheme.eligibleOccupations.includes(profile.occupation) ||
+      (isSelfEmployedProfile && schemeTargetsSelfEmployed) ||
       (scheme.eligibleOccupations.includes('Student') && Boolean(profile.isEnrolledInSchoolOrCollege));
 
     if (isOccupationMet) {

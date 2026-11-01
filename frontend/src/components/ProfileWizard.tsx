@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { CitizenProfile, Language, Occupation, Category, Gender } from '../types/scheme';
+import { CitizenProfile, Language, Occupation, Category, Gender, UserRole } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { PUNJAB_DISTRICTS } from '../data/punjabDistricts';
-import { Sparkles, RotateCcw, CheckCircle2, User, Briefcase, MapPin, IndianRupee, Layers, Check } from 'lucide-react';
+import { Sparkles, RotateCcw, CheckCircle2, User, Briefcase, MapPin, IndianRupee, Layers, Check, ShieldCheck, Bot } from 'lucide-react';
 
 interface ProfileWizardProps {
   currentLang: Language;
@@ -14,6 +14,7 @@ interface ProfileWizardProps {
   onSetPassword: (password: string) => Promise<void>;
   accountEmail: string | null;
   onOpenAiRoadmap?: () => void;
+  onOpenAdminConsole?: () => void;
   eligibleCount: number;
   potentialCount: number;
 }
@@ -28,6 +29,7 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
   onSetPassword,
   accountEmail,
   onOpenAiRoadmap,
+  onOpenAdminConsole,
   eligibleCount,
   potentialCount
 }) => {
@@ -42,11 +44,12 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
   const t = TRANSLATIONS[currentLang];
 
   const occupations: Occupation[] = [
+    'Student',
     'Farmer',
     'Agricultural Labourer',
-    'Student',
     'Unemployed Youth',
     'Artisan/Craftsperson',
+    'Self-Employed',
     'Self-Employed/Shopkeeper',
     'Daily Wage Worker',
     'Homemaker',
@@ -145,6 +148,67 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               {potentialCount} {t.potentialShort}
             </span>
           </span>
+        </div>
+      </div>
+
+      {/* User Profile Role Designation ('Citizen' | 'Admin') */}
+      <div className="mt-4 rounded-2xl border border-teal-200/80 bg-gradient-to-r from-slate-900 via-blue-950 to-teal-900 p-4 text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-teal-300" />
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-200">
+                User Profile Role State (ਵਰਤੋਂਕਾਰ ਭੂਮਿਕਾ)
+              </span>
+              <span
+                data-testid="active-profile-role-badge"
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
+                  profile.role === 'Admin'
+                    ? 'bg-amber-400 text-slate-950'
+                    : 'bg-white/15 text-white'
+                }`}
+              >
+                {(profile.role ?? 'Citizen') === 'Admin' ? 'Admin Role Active' : 'Citizen Role Active'}
+              </span>
+            </div>
+            <p className="text-xs text-blue-100">
+              Designate the <strong>Admin</strong> role in your profile state to unlock manually adding, editing, or deleting government scheme entries directly from the UI for the AI&apos;s knowledge base.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {(['Citizen', 'Admin'] as UserRole[]).map((roleOption) => {
+              const isSelected = (profile.role ?? 'Citizen') === roleOption;
+              return (
+                <button
+                  key={roleOption}
+                  type="button"
+                  data-testid={`profile-role-${roleOption.toLowerCase()}-btn`}
+                  aria-pressed={isSelected}
+                  onClick={() => handleChange('role', roleOption)}
+                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-teal-400 text-slate-950 shadow-md ring-2 ring-teal-200'
+                      : 'border border-white/20 bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  {roleOption === 'Admin' ? 'Admin (AI Knowledge Manager)' : 'Citizen (Standard)'}
+                </button>
+              );
+            })}
+
+            {profile.role === 'Admin' && onOpenAdminConsole && (
+              <button
+                type="button"
+                data-testid="profile-open-admin-kb-btn"
+                onClick={onOpenAdminConsole}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-sm transition hover:bg-amber-300 cursor-pointer"
+              >
+                <Bot className="h-3.5 w-3.5" />
+                <span>Manage AI Knowledge Base</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

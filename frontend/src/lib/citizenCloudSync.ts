@@ -16,6 +16,7 @@ const PROFILE_OCCUPATIONS = new Set<Occupation>([
   'Student',
   'Unemployed Youth',
   'Artisan/Craftsperson',
+  'Self-Employed',
   'Self-Employed/Shopkeeper',
   'Daily Wage Worker',
   'Homemaker',
@@ -43,6 +44,7 @@ export function parseCitizenProfile(value: unknown): CitizenProfile {
   const profile = value as Record<string, unknown>;
   if (
     (profile.username !== undefined && typeof profile.username !== 'string') ||
+    (profile.role !== undefined && profile.role !== 'Citizen' && profile.role !== 'Admin') ||
     typeof profile.age !== 'number' ||
     !Number.isFinite(profile.age) ||
     !isProfileGender(profile.gender) ||
@@ -62,6 +64,7 @@ export function parseCitizenProfile(value: unknown): CitizenProfile {
   }
   return {
     username: typeof profile.username === 'string' ? profile.username : '',
+    ...(profile.role === 'Admin' || profile.role === 'Citizen' ? { role: profile.role } : {}),
     age: profile.age,
     gender: profile.gender,
     occupation: profile.occupation,
@@ -227,6 +230,7 @@ export async function saveCitizenCloudData(
   const ownedDocsArray = extra?.ownedDocs ? Array.from(extra.ownedDocs) : undefined;
   const profilePayload: { [key: string]: Json | undefined } = {
     username: profile.username,
+    role: profile.role ?? 'Citizen',
     age: profile.age,
     gender: profile.gender,
     occupation: profile.occupation,

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CitizenProfile, Language } from '../types/scheme';
+import { CitizenProfile, Language, Scheme } from '../types/scheme';
+import { GOV_SCHEMES } from '../data/schemes';
+import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
 import { 
   Sparkles, 
   X, 
@@ -19,6 +21,7 @@ import {
 
 interface AiProfileRoadmapModalProps {
   profile: CitizenProfile;
+  schemes?: Scheme[];
   currentLang: Language;
   onClose: () => void;
   onOpenVoiceAssistant?: () => void;
@@ -26,6 +29,7 @@ interface AiProfileRoadmapModalProps {
 
 export const AiProfileRoadmapModal: React.FC<AiProfileRoadmapModalProps> = ({
   profile,
+  schemes = GOV_SCHEMES,
   currentLang,
   onClose,
   onOpenVoiceAssistant
@@ -44,6 +48,7 @@ export const AiProfileRoadmapModal: React.FC<AiProfileRoadmapModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userProfile: profile,
+          knowledgeBase: buildAiKnowledgeSummary(schemes),
           language: currentLang
         })
       });

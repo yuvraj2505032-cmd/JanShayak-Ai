@@ -6,12 +6,26 @@ import {
   Scheme, 
   ApplicationTrackerItem, 
   EligibilityEvaluation,
-  ManagedOfficialSite
+  ManagedOfficialSite,
+  UserRole
 } from './types/scheme';
 import { GOV_SCHEMES } from './data/schemes';
 import { TRANSLATIONS } from './data/translations';
 import { evaluateAllSchemes } from './utils/schemeEngine';
 import { matchesSchemeSearch } from './utils/schemeSearch';
+import {
+  INITIAL_ADMIN_KNOWLEDGE_STATE,
+  addAdminScheme,
+  buildAiKnowledgeSummary,
+  computeActiveSchemes,
+  deleteAdminScheme,
+  designateProfileRole,
+  isAdminProfile,
+  restoreDeletedSchemes,
+  updateAdminScheme,
+  type AdminSchemeFormInput,
+  type AdminSchemeKnowledgeState
+} from './utils/adminSchemeManager';
 
 // Components
 import { Navbar } from './components/Navbar';
@@ -35,23 +49,11 @@ import { ViewAllDocumentsModal } from './components/ViewAllDocumentsModal';
 import { AiSchemeAdvisorModal } from './components/AiSchemeAdvisorModal';
 import { AiProfileRoadmapModal } from './components/AiProfileRoadmapModal';
 import { AdminConsole } from './components/AdminConsole';
-import { SavedDeadlineBanner } from './components/SavedDeadlineBanner';
 import type { AiAdminLogEntry } from './components/AdminConsole';
 import { DEFAULT_OFFICIAL_PORTALS, AI_DISCOVERABLE_SCHEMES_POOL } from './data/officialPortals';
-import { getSchemeYoutubeBundle } from './data/schemeVideos';
 import { supabase, supabaseConfigurationError } from './lib/supabase';
 import { loadCitizenCloudData, parseCitizenProfile, parseSavedSchemeIds, parseTrackedItems, saveCitizenCloudData } from './lib/citizenCloudSync';
-import {
-  createLocalAccount,
-  linkLocalAccountWithGoogle,
-  resetLocalAccountPassword,
-  restoreLocalAccount,
-  signInLocalAccount,
-  signInOrCreateGoogleLocalAccount,
-  signOutLocalAccount,
-  unlinkLocalAccountGoogle,
-  updateLocalAccountPassword
-} from './lib/localAuth';
+import { createLocalAccount, resetLocalAccountPassword, restoreLocalAccount, signInLocalAccount, signOutLocalAccount, updateLocalAccountPassword } from './lib/localAuth';
 import type { LocalAccount } from './lib/localAuth';
 
 import { 
@@ -64,12 +66,12 @@ import {
   ArrowLeft,
   Bot,
   GraduationCap,
-  Sparkles,
-  Home
+  Sparkles
 } from 'lucide-react';
 
 const DEFAULT_PROFILE: CitizenProfile = {
   username: '',
+  role: 'Citizen',
   age: 20,
   gender: 'Male',
   occupation: 'Student',
@@ -146,7 +148,7 @@ export default function App() {
     } catch (e) {
       console.warn('Could not load AI admin schemes:', e);
     }
-    return [AI_DISCOVERABLE_SCHEMES_POOL[0].scheme, AI_DISCOVERABLE_SCHEMES_POOL[1].scheme];
+    return [AI_DISCOVERABLE_SCHEMES_POOL[0].scheme];
   });
   const [isAiAutoSyncEnabled, setIsAiAutoSyncEnabled] = useState<boolean>(true);
   const [isAiDiscovering, setIsAiDiscovering] = useState<boolean>(false);
@@ -157,18 +159,6 @@ export default function App() {
       schemeTitle: AI_DISCOVERABLE_SCHEMES_POOL[0].scheme.titleEn,
       portalTitle: AI_DISCOVERABLE_SCHEMES_POOL[0].portal.title,
       portalUrl: AI_DISCOVERABLE_SCHEMES_POOL[0].portal.url,
-      youtubeUrl: `https://www.youtube.com/watch?v=${AI_DISCOVERABLE_SCHEMES_POOL[0].scheme.youtubeVideoId || 'pJBv6JWgX8E'}`,
-      youtubeVideoTitle: AI_DISCOVERABLE_SCHEMES_POOL[0].scheme.youtubeVideoTitle,
-      mode: 'Auto-Scheduled'
-    },
-    {
-      id: 'log-initial-2',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      schemeTitle: AI_DISCOVERABLE_SCHEMES_POOL[1].scheme.titleEn,
-      portalTitle: AI_DISCOVERABLE_SCHEMES_POOL[1].portal.title,
-      portalUrl: AI_DISCOVERABLE_SCHEMES_POOL[1].portal.url,
-      youtubeUrl: `https://www.youtube.com/watch?v=${AI_DISCOVERABLE_SCHEMES_POOL[1].scheme.youtubeVideoId || 'PpozLw8TeVw'}`,
-      youtubeVideoTitle: AI_DISCOVERABLE_SCHEMES_POOL[1].scheme.youtubeVideoTitle,
       mode: 'Auto-Scheduled'
     }
   ]);
@@ -178,13 +168,6 @@ export default function App() {
   const [localAccount, setLocalAccount] = useState<LocalAccount | null>(null);
   const [localAuthReady, setLocalAuthReady] = useState(false);
   const [localAuthError, setLocalAuthError] = useState<string | null>(null);
-  const [googleLinkedEmail, setGoogleLinkedEmail] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('janshayak_google_linked_email');
-    } catch {
-      return null;
-    }
-  });
   const [dataOwnerId, setDataOwnerId] = useState<string | null | undefined>(undefined);
   const [cloudSyncStatus, setCloudSyncStatus] = useState('Cloud sync is not active.');
   const importLocalDataOnSignIn = useRef(false);
@@ -245,24 +228,13 @@ export default function App() {
 
   // Saved schemes storage
   const [savedSchemeIds, setSavedSchemeIds] = useState<Set<string>>(() => {
-    const defaultSaved = ['pm-kisan', 'post-matric-sc', 'dr-hargobind-khurana-scholarship', 'sarbat-sehat-bima'];
     try {
       const saved = localStorage.getItem('punjab_saved_schemes');
-      const seededV1 = localStorage.getItem('janshayak_saved_deadlines_seeded_v1');
-      if (saved) {
-        const parsed = parseSavedSchemeIds(JSON.parse(saved));
-        if (!seededV1 && parsed.size <= 2 && parsed.has('pm-kisan')) {
-          defaultSaved.forEach(id => parsed.add(id));
-          localStorage.setItem('punjab_saved_schemes', JSON.stringify(Array.from(parsed)));
-          localStorage.setItem('janshayak_saved_deadlines_seeded_v1', 'true');
-        }
-        return parsed;
-      }
-      localStorage.setItem('janshayak_saved_deadlines_seeded_v1', 'true');
+      if (saved) return parseSavedSchemeIds(JSON.parse(saved));
     } catch (e) {
       console.warn('Could not read saved schemes from localStorage', e);
     }
-    return new Set<string>(defaultSaved);
+    return new Set<string>(['pm-kisan', 'sarbat-sehat-bima']);
   });
 
   // Application tracker storage
@@ -295,17 +267,6 @@ export default function App() {
 
   // Smart document owned keys
   const [userOwnedDocs, setUserOwnedDocs] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('janshayak_owned_docs');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return new Set<string>(parsed.map(String));
-        }
-      }
-    } catch {
-      // ignore
-    }
     return new Set<string>([
       'aadhaar card linked with mobile',
       'punjab residence / domicile certificate',
@@ -315,11 +276,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const restored = restoreLocalAccount();
-      setLocalAccount(restored);
-      if (restored?.googleLinkedEmail) {
-        setGoogleLinkedEmail(restored.googleLinkedEmail);
-      }
+      setLocalAccount(restoreLocalAccount());
     } catch (error) {
       console.error('Could not restore local account:', error);
       setLocalAuthError(error instanceof Error ? error.message : 'Could not restore the local account.');
@@ -337,16 +294,7 @@ export default function App() {
     let active = true;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
-      const user = session?.user ?? null;
-      setAuthUser(user);
-      if (user) {
-        const metaGoogle = typeof user.user_metadata?.google_linked_email === 'string'
-          ? user.user_metadata.google_linked_email
-          : user.app_metadata?.provider === 'google'
-            ? user.email ?? null
-            : null;
-        if (metaGoogle) setGoogleLinkedEmail(metaGoogle);
-      }
+      setAuthUser(session?.user ?? null);
       setAuthReady(true);
     });
 
@@ -356,16 +304,7 @@ export default function App() {
         console.error('Could not restore Supabase session:', error);
         setCloudSyncStatus(`Authentication error: ${error.message}`);
       }
-      const user = data.session?.user ?? null;
-      setAuthUser(user);
-      if (user) {
-        const metaGoogle = typeof user.user_metadata?.google_linked_email === 'string'
-          ? user.user_metadata.google_linked_email
-          : user.app_metadata?.provider === 'google'
-            ? user.email ?? null
-            : null;
-        if (metaGoogle) setGoogleLinkedEmail(metaGoogle);
-      }
+      setAuthUser(data.session?.user ?? null);
       setAuthReady(true);
     }).catch((error: unknown) => {
       if (!active) return;
@@ -386,7 +325,6 @@ export default function App() {
     if (!authUser && localAccount) {
       const ownerId = `local-${localAccount.id}`;
       hadActiveCloudAccount.current = false;
-      setGoogleLinkedEmail(localAccount.googleLinkedEmail ?? null);
       try {
         const savedSchemes = localStorage.getItem(`punjab_saved_schemes:${ownerId}`);
         const trackedSchemes = localStorage.getItem(`punjab_tracked_schemes:${ownerId}`);
@@ -398,7 +336,7 @@ export default function App() {
           ? parseSavedSchemeIds(JSON.parse(savedSchemes))
           : guestSavedSchemes
             ? parseSavedSchemeIds(JSON.parse(guestSavedSchemes))
-            : new Set(['pm-kisan', 'post-matric-sc', 'dr-hargobind-khurana-scholarship', 'sarbat-sehat-bima']));
+            : new Set());
         setTrackedItems(trackedSchemes
           ? parseTrackedItems(JSON.parse(trackedSchemes))
           : guestTrackedSchemes
@@ -407,11 +345,7 @@ export default function App() {
         setProfile(savedProfile ?? (importGuestData ? loadStoredProfile('janshayak_profile') : null) ?? DEFAULT_PROFILE);
         importLocalDataOnLocalSignUp.current = false;
         setDataOwnerId(ownerId);
-        setCloudSyncStatus(
-          localAccount.googleLinkedEmail
-            ? `Linked with Google (${localAccount.googleLinkedEmail}) · Saved & backed up.`
-            : 'Account saved on this device and ready for Supabase sync.'
-        );
+        setCloudSyncStatus('This account is saved on this device only. It does not sync to the cloud.');
       } catch (error) {
         console.error('Could not load local account data:', error);
         setCloudSyncStatus(error instanceof Error ? error.message : 'Could not load local account data.');
@@ -421,7 +355,7 @@ export default function App() {
 
     if (!authUser) {
       if (hadActiveCloudAccount.current) {
-        setSavedSchemeIds(new Set(['pm-kisan', 'post-matric-sc', 'dr-hargobind-khurana-scholarship', 'sarbat-sehat-bima']));
+        setSavedSchemeIds(new Set(['pm-kisan', 'sarbat-sehat-bima']));
         setTrackedItems([]);
       }
       setProfile(loadStoredProfile('janshayak_profile') ?? DEFAULT_PROFILE);
@@ -449,22 +383,13 @@ export default function App() {
     setTrackedItems([]);
     setCloudSyncStatus('Loading your account data…');
 
-    loadCitizenCloudData(authUser.id).then(({ savedSchemeIds: cloudSaved, trackedItems: cloudTracked, profile: cloudProfile, ownedDocs: cloudOwnedDocs, preferredLanguage: cloudLang, googleLinkedEmail: cloudGoogleEmail, hasCloudRecord }) => {
+    loadCitizenCloudData(authUser.id).then(({ savedSchemeIds: cloudSaved, trackedItems: cloudTracked, profile: cloudProfile, hasCloudRecord }) => {
       if (!active) return;
       const cachedProfile = loadStoredProfile(`janshayak_profile:${authUser.id}`);
       const importedProfile = !hasCloudRecord && importLocalDataOnSignIn.current
         ? loadStoredProfile('janshayak_profile')
         : null;
       setProfile(cloudProfile ?? importedProfile ?? cachedProfile ?? DEFAULT_PROFILE);
-      if (cloudOwnedDocs && cloudOwnedDocs.size > 0) {
-        setUserOwnedDocs(cloudOwnedDocs);
-      }
-      if (cloudLang) {
-        setCurrentLang(cloudLang);
-      }
-      if (cloudGoogleEmail) {
-        setGoogleLinkedEmail(cloudGoogleEmail);
-      }
       if (!hasCloudRecord && importLocalDataOnSignIn.current) {
         const localSaved = localStorage.getItem('punjab_saved_schemes');
         const localTracked = localStorage.getItem('punjab_tracked_schemes');
@@ -507,44 +432,15 @@ export default function App() {
     try {
       localStorage.setItem(trackedKey, JSON.stringify(trackedItems));
       localStorage.setItem(savedKey, JSON.stringify(Array.from(savedSchemeIds)));
-      localStorage.setItem('janshayak_owned_docs', JSON.stringify(Array.from(userOwnedDocs)));
-      if (googleLinkedEmail) {
-        localStorage.setItem('janshayak_google_linked_email', googleLinkedEmail);
-      } else {
-        localStorage.removeItem('janshayak_google_linked_email');
-      }
     } catch (error) {
       console.error('Could not cache scheme data on this device:', error);
       setCloudSyncStatus('Could not save your local cache.');
     }
 
+    if (!authUser || !supabase) return;
+    setCloudSyncStatus('Syncing changes…');
     const timeout = window.setTimeout(() => {
-      // Also sync to backend Supabase bridge when available
-      if (ownerId) {
-        void fetch('/api/supabase/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authUser?.id ?? undefined,
-            savedSchemeIds: Array.from(savedSchemeIds),
-            trackedSchemes: trackedItems,
-            citizenProfile: profile,
-            ownedDocs: Array.from(userOwnedDocs),
-            preferredLanguage: currentLang,
-            googleLinkedEmail
-          })
-        }).catch(() => {
-          // Silent fallback when offline
-        });
-      }
-
-      if (!authUser || !supabase) return;
-      setCloudSyncStatus('Syncing changes…');
-      saveCitizenCloudData(authUser.id, savedSchemeIds, trackedItems, profile, {
-        ownedDocs: userOwnedDocs,
-        preferredLanguage: currentLang,
-        googleLinkedEmail
-      }).then(() => {
+      saveCitizenCloudData(authUser.id, savedSchemeIds, trackedItems, profile).then(() => {
         setCloudSyncStatus('Cloud data is up to date.');
       }).catch((error: unknown) => {
         console.error('Could not sync Supabase app data:', error);
@@ -553,7 +449,7 @@ export default function App() {
     }, 500);
 
     return () => window.clearTimeout(timeout);
-  }, [authReady, localAuthReady, dataOwnerId, authUser?.id, localAccount?.id, savedSchemeIds, trackedItems, profile, userOwnedDocs, currentLang, googleLinkedEmail]);
+  }, [authReady, localAuthReady, dataOwnerId, authUser?.id, localAccount?.id, savedSchemeIds, trackedItems, profile]);
 
   useEffect(() => {
     const ownerId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
@@ -663,15 +559,13 @@ export default function App() {
             benefitType: isStudentTopic ? 'Scholarship' : 'Direct Cash Transfer',
             minAge: isStudentTopic ? 15 : 18,
             maxAge: isStudentTopic ? 32 : 65,
-            eligibleOccupations: isStudentTopic ? ['Student', 'Unemployed Youth'] : ['Student', 'Farmer', 'Daily Wage Worker', 'Self-Employed/Shopkeeper', 'Unemployed Youth'],
+            eligibleOccupations: isStudentTopic ? ['Student', 'Unemployed Youth'] : ['Student', 'Farmer', 'Daily Wage Worker', 'Self-Employed', 'Unemployed Youth'],
             requiresPunjabDomicile: true,
             maxIncome: 400000,
             applicationDeadline: 'Open on Official Portal (2026-27)',
             deadlineType: 'Ongoing',
             officialPortalUrl: isStudentTopic ? 'https://scholarships.punjab.gov.in' : 'https://connect.punjab.gov.in',
             officialPortalName: isStudentTopic ? 'Punjab Scholarship Portal' : 'Connect Punjab Official Portal',
-            youtubeVideoId: isStudentTopic ? 'pJBv6JWgX8E' : 'PpozLw8TeVw',
-            youtubeVideoTitle: `${customTopic} — Online Application & Eligibility YouTube Tutorial`,
             requiredDocuments: [
               { nameEn: 'Aadhaar Card linked with Mobile', namePa: 'ਮੋਬਾਈਲ ਨਾਲ ਲਿੰਕ ਆਧਾਰ ਕਾਰਡ', nameHi: 'आधार कार्ड', issuingAuthority: 'UIDAI', availableOnDigiLocker: true },
               { nameEn: 'Punjab Residence / Domicile Certificate', namePa: 'ਪੰਜਾਬ ਰਿਹਾਇਸ਼ ਸਰਟੀਫਿਕੇਟ', nameHi: 'पंजाब निवास प्रमाण पत्र', issuingAuthority: 'Sewa Kendra', availableOnDigiLocker: true }
@@ -687,7 +581,7 @@ export default function App() {
                 descriptionHi: 'आधार ई-केवाईसी और बैंक विवरण निःशुल्क दर्ज करें।'
               }
             ],
-            sourceCitation: 'AI Autonomous Admin · Verified Gazette & YouTube Sync 2026',
+            sourceCitation: 'AI Autonomous Admin · Verified Gazette Sync 2026',
             verifiedDate: 'November 2026'
           };
           chosenPortal = {
@@ -704,7 +598,6 @@ export default function App() {
       if (chosenScheme && chosenPortal) {
         const schemeToAdd = chosenScheme;
         const portalToAdd = chosenPortal;
-        const ytBundle = getSchemeYoutubeBundle(schemeToAdd);
         setAiAddedSchemes(prev => [schemeToAdd, ...prev.filter(s => s.id !== schemeToAdd.id)]);
         setManagedSites(prev => [portalToAdd, ...prev.filter(p => p.id !== portalToAdd.id)]);
         setAiAdminLogs(prev => [
@@ -714,8 +607,6 @@ export default function App() {
             schemeTitle: schemeToAdd.titleEn,
             portalTitle: portalToAdd.title,
             portalUrl: portalToAdd.url,
-            youtubeUrl: ytBundle.watchOnYoutubeUrl,
-            youtubeVideoTitle: ytBundle.videoTitle,
             mode
           },
           ...prev
@@ -809,12 +700,6 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
-    setGoogleLinkedEmail(null);
-    try {
-      localStorage.removeItem('janshayak_google_linked_email');
-    } catch {
-      // ignore
-    }
     if (localAccount) {
       signOutLocalAccount();
       setLocalAccount(null);
@@ -823,105 +708,6 @@ export default function App() {
     if (!supabase) return supabaseConfigurationError || 'Supabase is not configured.';
     const { error } = await supabase.auth.signOut();
     return error?.message ?? null;
-  };
-
-  const handleGoogleSignIn = async (googleEmail: string) => {
-    const normalized = googleEmail.trim().toLowerCase();
-    if (!normalized || !normalized.includes('@')) {
-      return { error: 'Please enter a valid Google / Gmail address.' };
-    }
-    try {
-      const account = await signInOrCreateGoogleLocalAccount(normalized);
-      setLocalAccount(account);
-      setGoogleLinkedEmail(normalized);
-      try {
-        localStorage.setItem('janshayak_google_linked_email', normalized);
-      } catch {
-        // ignore
-      }
-      if (!profile.username) {
-        const defaultName = normalized.split('@')[0];
-        setProfile(prev => ({ ...prev, username: prev.username || defaultName }));
-      }
-      setCloudSyncStatus(`Signed in & linked with Google (${normalized}) · Synced.`);
-      return {
-        notice: currentLang === 'pa'
-          ? `Google ਖਾਤੇ (${normalized}) ਨਾਲ ਸਫਲਤਾਪੂਰਵਕ ਸਾਈਨ ਇਨ ਅਤੇ ਲਿੰਕ ਹੋ ਗਿਆ ਹੈ!`
-          : currentLang === 'hi'
-            ? `Google खाते (${normalized}) के साथ सफलतापूर्वक साइन इन और लिंक हो गया है!`
-            : `Signed in and linked directly with Google (${normalized})!`
-      };
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Could not sign in with Google.' };
-    }
-  };
-
-  const handleLinkGoogle = async (googleEmail: string) => {
-    const normalized = googleEmail.trim().toLowerCase();
-    if (!normalized || !normalized.includes('@')) {
-      return { error: 'Please enter a valid Google / Gmail address.' };
-    }
-    try {
-      if (localAccount) {
-        const updated = linkLocalAccountWithGoogle(localAccount.id, normalized);
-        setLocalAccount(updated);
-      }
-      if (authUser && supabase) {
-        await supabase.auth.updateUser({
-          data: { google_linked_email: normalized }
-        });
-        await saveCitizenCloudData(authUser.id, savedSchemeIds, trackedItems, profile, {
-          ownedDocs: userOwnedDocs,
-          preferredLanguage: currentLang,
-          googleLinkedEmail: normalized
-        });
-      }
-      setGoogleLinkedEmail(normalized);
-      try {
-        localStorage.setItem('janshayak_google_linked_email', normalized);
-      } catch {
-        // ignore
-      }
-      setCloudSyncStatus(`Linked with Google (${normalized}) · Cloud sync active.`);
-      return {
-        notice: currentLang === 'pa'
-          ? `ਤੁਹਾਡਾ ਖਾਤਾ Google (${normalized}) ਨਾਲ ਸਿੱਧਾ ਲਿੰਕ ਹੋ ਗਿਆ ਹੈ!`
-          : currentLang === 'hi'
-            ? `आपका खाता Google (${normalized}) के साथ सीधे लिंक हो गया है!`
-            : `Your account is now directly linked with Google (${normalized})!`
-      };
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Could not link Google account.' };
-    }
-  };
-
-  const handleUnlinkGoogle = async () => {
-    try {
-      if (localAccount) {
-        const updated = unlinkLocalAccountGoogle(localAccount.id);
-        setLocalAccount(updated);
-      }
-      if (authUser && supabase) {
-        await supabase.auth.updateUser({
-          data: { google_linked_email: null }
-        });
-      }
-      setGoogleLinkedEmail(null);
-      try {
-        localStorage.removeItem('janshayak_google_linked_email');
-      } catch {
-        // ignore
-      }
-      return {
-        notice: currentLang === 'pa'
-          ? 'Google ਖਾਤਾ ਲਿੰਕ ਹਟਾ ਦਿੱਤਾ ਗਿਆ ਹੈ।'
-          : currentLang === 'hi'
-            ? 'Google खाता लिंक हटा दिया गया है।'
-            : 'Google account link removed.'
-      };
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Could not unlink Google account.' };
-    }
   };
 
   const handleSaveProfile = async () => {
@@ -943,14 +729,10 @@ export default function App() {
       setCloudSyncStatus('Saving your profile to Supabase…');
       try {
         const { error: metadataError } = await supabase.auth.updateUser({
-          data: { username: profile.username.trim(), google_linked_email: googleLinkedEmail }
+          data: { username: profile.username.trim() }
         });
         if (metadataError) throw metadataError;
-        await saveCitizenCloudData(authUser.id, savedSchemeIds, trackedItems, profile, {
-          ownedDocs: userOwnedDocs,
-          preferredLanguage: currentLang,
-          googleLinkedEmail
-        });
+        await saveCitizenCloudData(authUser.id, savedSchemeIds, trackedItems, profile);
       } catch (error) {
         console.error('Could not save citizen profile to Supabase:', error);
         setCloudSyncStatus(error instanceof Error ? error.message : 'Could not save profile to Supabase.');
@@ -1010,30 +792,101 @@ export default function App() {
     });
   };
 
-  const t = TRANSLATIONS[currentLang];
+  const [adminKnowledgeState, setAdminKnowledgeState] = useState<AdminSchemeKnowledgeState>(() => {
+    try {
+      const saved = localStorage.getItem('janshayak_admin_kb_state_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            customSchemes: Array.isArray(parsed.customSchemes) ? parsed.customSchemes : [],
+            editedSchemes: parsed.editedSchemes && typeof parsed.editedSchemes === 'object' ? parsed.editedSchemes : {},
+            deletedSchemeIds: Array.isArray(parsed.deletedSchemeIds) ? parsed.deletedSchemeIds : []
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load admin knowledge base state:', e);
+    }
+    return INITIAL_ADMIN_KNOWLEDGE_STATE;
+  });
+  const [adminEditTargetScheme, setAdminEditTargetScheme] = useState<Scheme | null>(null);
 
-  const activeSectionTitleMap: Record<string, string> = {
-    dashboard: t.tabDashboard,
-    insights: t.tabInsights,
-    wizard: t.tabEligibilityWizard,
-    profile: t.tabProfile,
-    'video-guides': t.tabVideoGuides,
-    scanner: t.tabScanner,
-    family: t.tabFamilyFinder,
-    whatif: t.tabWhatIf,
-    districts: t.tabDistricts,
-    deadlines: t.tabDeadlines,
-    tracker: t.tabTracker,
-    'fraud-shield': t.tabFraudShield,
-    saved: t.tabSaved,
-    admin: t.tabAdmin
+  useEffect(() => {
+    try {
+      localStorage.setItem('janshayak_admin_kb_state_v1', JSON.stringify(adminKnowledgeState));
+    } catch (e) {
+      console.warn('Could not save admin knowledge base state:', e);
+    }
+  }, [adminKnowledgeState]);
+
+  const handleDesignateRole = (nextRole: UserRole) => {
+    setProfile(prev => {
+      const updated = designateProfileRole(prev, nextRole);
+      const ownerId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
+      const profileKey = ownerId ? `janshayak_profile:${ownerId}` : 'janshayak_profile';
+      try {
+        localStorage.setItem(profileKey, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not persist designated role:', e);
+      }
+      return updated;
+    });
   };
 
-  // Combine AI-Admin added schemes with static GOV_SCHEMES
+  const handleAddAdminScheme = (input: AdminSchemeFormInput): Scheme => {
+    const { nextState, createdScheme } = addAdminScheme(adminKnowledgeState, input, profile.role ?? 'Citizen');
+    setAdminKnowledgeState(nextState);
+    return createdScheme;
+  };
+
+  const handleUpdateAdminScheme = (existingScheme: Scheme, input: AdminSchemeFormInput): Scheme => {
+    const { nextState, updatedScheme } = updateAdminScheme(adminKnowledgeState, existingScheme, input, profile.role ?? 'Citizen');
+    setAdminKnowledgeState(nextState);
+    if (selectedScheme?.id === updatedScheme.id) {
+      setSelectedScheme(updatedScheme);
+    }
+    return updatedScheme;
+  };
+
+  const handleDeleteAdminScheme = (schemeId: string) => {
+    const nextState = deleteAdminScheme(adminKnowledgeState, schemeId, profile.role ?? 'Citizen');
+    setAdminKnowledgeState(nextState);
+    if (selectedScheme?.id === schemeId) {
+      setSelectedScheme(null);
+    }
+  };
+
+  const handleRestoreDeletedSchemes = () => {
+    const nextState = restoreDeletedSchemes(adminKnowledgeState, profile.role ?? 'Citizen');
+    setAdminKnowledgeState(nextState);
+  };
+
+  const handleEditSchemeFromCard = (scheme: Scheme) => {
+    setAdminEditTargetScheme(scheme);
+    setActiveTab('admin');
+    window.scrollTo({ top: 200, behavior: 'smooth' });
+  };
+
+  const t = TRANSLATIONS[currentLang];
+
+  // Combine Admin custom/edited/deleted state, AI-Admin added schemes, and static GOV_SCHEMES
   const allSchemes = React.useMemo(() => {
-    const existingIds = new Set(GOV_SCHEMES.map(s => s.id));
-    return [...aiAddedSchemes.filter(s => !existingIds.has(s.id)), ...GOV_SCHEMES];
-  }, [aiAddedSchemes]);
+    return computeActiveSchemes(GOV_SCHEMES, aiAddedSchemes, adminKnowledgeState);
+  }, [aiAddedSchemes, adminKnowledgeState]);
+
+  // Sync the active scheme knowledge base to the backend AI server whenever Admin modifies schemes
+  useEffect(() => {
+    if (!isAdminProfile(profile)) return;
+    const summary = buildAiKnowledgeSummary(allSchemes);
+    fetch('/api/admin/knowledge-base', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: profile.role, knowledgeBase: summary })
+    }).catch(() => {
+      // Non-fatal if offline; client also sends knowledgeBase with AI requests
+    });
+  }, [allSchemes, profile.role]);
 
   // Evaluate profile against all schemes
   const evaluations = evaluateAllSchemes(profile, allSchemes);
@@ -1186,11 +1039,11 @@ export default function App() {
   const occupationsList: { id: CitizenProfile['occupation']; label: string }[] = [
     { id: 'Student', label: currentLang === 'pa' ? 'ਵਿਦਿਆਰਥੀ (Student)' : currentLang === 'hi' ? 'छात्र (Student)' : 'Student (ਵਿਦਿਆਰਥੀ)' },
     { id: 'Farmer', label: currentLang === 'pa' ? 'ਕਿਸਾਨ (Farmer)' : currentLang === 'hi' ? 'किसान (Farmer)' : 'Farmer (ਕਿਸਾਨ)' },
-    { id: 'Daily Wage Worker', label: currentLang === 'pa' ? 'ਦਿਹਾੜੀਦਾਰ ਮਜ਼ਦੂਰ' : currentLang === 'hi' ? 'दैनिक वेतनभोगी' : 'Daily Wage Worker' },
-    { id: 'Self-Employed/Shopkeeper', label: currentLang === 'pa' ? 'ਦੁਕਾਨਦਾਰ / ਸਵੈ-ਰੁਜ਼ਗਾਰ' : currentLang === 'hi' ? 'स्वरोजगार / दुकानदार' : 'Self-Employed / Shopkeeper' },
+    { id: 'Daily Wage Worker', label: currentLang === 'pa' ? 'ਦਿਹਾੜੀਦਾਰ ਮਜ਼ਦੂਰ' : currentLang === 'hi' ? 'दिहाड़ी मजदूर' : 'Daily Wage Worker' },
+    { id: 'Self-Employed', label: currentLang === 'pa' ? 'ਸਵੈ-ਰੁਜ਼ਗਾਰ' : currentLang === 'hi' ? 'स्वरोजगार' : 'Self-Employed' },
     { id: 'Unemployed Youth', label: currentLang === 'pa' ? 'ਬੇਰੁਜ਼ਗਾਰ ਨੌਜਵਾਨ' : currentLang === 'hi' ? 'बेरोजगार युवा' : 'Unemployed Youth' },
     { id: 'Senior Citizen', label: currentLang === 'pa' ? 'ਬਜ਼ੁਰਗ ਨਾਗਰਿਕ (60+)' : currentLang === 'hi' ? 'वरिष्ठ नागरिक (60+)' : 'Senior Citizen (60+)' },
-    { id: 'Homemaker', label: currentLang === 'pa' ? 'ਘਰੇਲੂ ਔਰਤ (Homemaker)' : currentLang === 'hi' ? 'गृहिणी (Homemaker)' : 'Homemaker' },
+    { id: 'Homemaker', label: currentLang === 'pa' ? 'ਘਰੇਲੂ ਔਰਤ' : currentLang === 'hi' ? 'गृहिणी' : 'Homemaker' },
   ];
 
   return (
@@ -1207,7 +1060,6 @@ export default function App() {
           configurationError: supabaseConfigurationError,
           userEmail: authUser?.email ?? null,
           localUserEmail: localAccount?.email ?? null,
-          googleLinkedEmail,
           username: profile.username,
           localAuthError,
           syncStatus: cloudSyncStatus,
@@ -1217,16 +1069,12 @@ export default function App() {
           onLocalSignUp: handleLocalSignUp,
           onLocalResetPassword: handleLocalResetPassword,
           onCloudResetPassword: handleCloudResetPassword,
-          onGoogleSignIn: handleGoogleSignIn,
-          onLinkGoogle: handleLinkGoogle,
-          onUnlinkGoogle: handleUnlinkGoogle,
           onSignOut: handleSignOut
         }}
       />
 
       {activeTab === 'dashboard' && (
         <HeroBanner
-          currentLang={currentLang}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onStartWizard={() => setActiveTab('wizard')}
@@ -1248,64 +1096,9 @@ export default function App() {
       {/* Main Content Area */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
 
-        {/* Universal Back to Home Navigation Bar whenever on any sub-tab */}
-        {activeTab !== 'dashboard' && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/90 via-white to-slate-50 px-4 py-3 shadow-xs">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                data-testid="back-to-home-btn"
-                onClick={() => {
-                  setActiveTab('dashboard');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-xs transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 cursor-pointer"
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                <Home className="h-4 w-4" aria-hidden="true" />
-                <span>{t.backToHome || 'Back to Home'}</span>
-              </button>
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
-                <span className="text-slate-300">/</span>
-                <span className="font-semibold text-slate-500">{t.currentSection || 'Section'}:</span>
-                <span className="rounded-lg bg-white border border-slate-200 px-2.5 py-1 font-bold text-slate-900">
-                  {activeSectionTitleMap[activeTab] || activeTab}
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('dashboard');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="text-xs font-bold text-blue-700 hover:text-blue-900 underline cursor-pointer"
-            >
-              {t.tabDashboard} →
-            </button>
-          </div>
-        )}
-
         {/* TAB: DASHBOARD & SCHEME DIRECTORY */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            {/* Saved Schemes Upcoming 30-Day Deadlines Notification Banner */}
-            <SavedDeadlineBanner
-              schemes={allSchemes}
-              savedSchemeIds={savedSchemeIds}
-              currentLang={currentLang}
-              onOpenSchemeDetails={(scheme, tab) => handleOpenSchemeDetails(scheme, tab)}
-              onToggleSave={handleToggleSave}
-              onOpenDeadlineHub={() => {
-                setActiveTab('deadlines');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onFilterSavedSchemes={() => {
-                setActiveCategoryFilter('Saved');
-              }}
-            />
-
             {/* Active Occupation Quick Selector Bar (with Student selected) */}
             <section
               aria-label="Occupation selector"
@@ -1319,29 +1112,47 @@ export default function App() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-blue-800">
-                        {t.occupationLabel}:
+                        Occupation (ਕਿੱਤਾ):
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-blue-700 px-2.5 py-0.5 text-xs font-bold text-white">
                         {occupationsList.find(o => o.id === profile.occupation)?.label || profile.occupation}
                       </span>
                       <span className="text-xs font-semibold text-emerald-700">
-                        ({eligibleCount} {t.eligibleShort || 'Eligible'} · {potentialCount} {t.potentialShort || 'Potential'})
+                        ({eligibleCount} Eligible · {potentialCount} Potential)
                       </span>
                     </div>
                     <p className="text-xs text-slate-600">
-                      {t.occupationSelectorDesc || 'Select your occupation below to instantly match Student Scholarships, Farmer Subsidies, or Welfare Pensions.'}
+                      Select your occupation below to instantly match Student Scholarships, Farmer Subsidies, or Welfare Pensions.
                     </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('admin')}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-900 transition hover:bg-teal-100"
-                >
-                  <Bot className="h-3.5 w-3.5 text-teal-700" />
-                  <span>{(t.aiAdminNewAdded || 'AI Admin ({count} New Added)').replace('{count}', String(aiAddedSchemes.length))}</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="dashboard-toggle-admin-role-btn"
+                    onClick={() => handleDesignateRole(isAdminProfile(profile) ? 'Citizen' : 'Admin')}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                      isAdminProfile(profile)
+                        ? 'border-amber-300 bg-amber-400 text-slate-950 shadow-xs'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>
+                      {isAdminProfile(profile) ? 'Role: Admin (Active)' : 'Role: Citizen (Switch to Admin)'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('admin')}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-900 transition hover:bg-teal-100 cursor-pointer"
+                  >
+                    <Bot className="h-3.5 w-3.5 text-teal-700" />
+                    <span>AI Knowledge Base ({allSchemes.length} Schemes)</span>
+                  </button>
+                </div>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1370,17 +1181,14 @@ export default function App() {
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-                  {t.exploreSchemesTitle || 'Explore government schemes'}
+                  Explore government schemes
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  {(t.exploreSchemesSubtitle || 'Discover benefits and support matched to your needs ({occupation} profile active).').replace(
-                    '{occupation}',
-                    occupationsList.find(o => o.id === profile.occupation)?.label || profile.occupation
-                  )}
+                  Discover benefits and support matched to your needs ({profile.occupation} profile active · Role: {profile.role ?? 'Citizen'}).
                 </p>
               </div>
               <span className="text-sm font-medium text-slate-500">
-                {filteredSchemes.length} {filteredSchemes.length === 1 ? (t.schemeCountSingle || 'scheme') : (t.schemesCountLabel || 'schemes')}
+                {filteredSchemes.length} {filteredSchemes.length === 1 ? 'scheme' : 'schemes'}
               </span>
             </div>
 
@@ -1399,15 +1207,18 @@ export default function App() {
                     onOpenScanner={(s) => handleOpenScanner(s)}
                     isSaved={savedSchemeIds.has(scheme.id)}
                     onToggleSave={handleToggleSave}
+                    isAdminRole={isAdminProfile(profile)}
+                    onEditScheme={handleEditSchemeFromCard}
+                    onDeleteScheme={(s) => handleDeleteAdminScheme(s.id)}
                   />
                 ))}
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
                 <SearchX className="w-10 h-10 text-slate-400 mx-auto" />
-                <h3 className="font-bold text-slate-800">{t.noSchemesMatched || 'No schemes matched your search criteria'}</h3>
+                <h3 className="font-bold text-slate-800">No schemes matched your search criteria</h3>
                 <p className="text-xs text-slate-500">
-                  {t.noSchemesMatchedDesc || 'Try adjusting the search query or switching the category filter back to "All Schemes".'}
+                  Try adjusting the search query or switching the category filter back to "All Schemes".
                 </p>
                 <button
                   type="button"
@@ -1417,7 +1228,7 @@ export default function App() {
                   }}
                   className="text-xs font-bold text-blue-700 underline mt-2"
                 >
-                  {t.clearAllFilters || 'Clear all filters'}
+                  Clear all filters
                 </button>
               </div>
             )}
@@ -1428,13 +1239,13 @@ export default function App() {
                   <div>
                     <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-teal-700">
                       <Sparkles className="h-3.5 w-3.5" />
-                      <span>{t.verifiedGovLinksBadge || 'Verified Direct Government Links'} ({managedSites.length})</span>
+                      <span>Verified Direct Government Links ({managedSites.length} Portals)</span>
                     </div>
                     <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
-                      {t.officialPortalsHeading || 'Official Government Portals & Direct Application Links'}
+                      Official Government Portals & Direct Application Links
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      {t.officialPortalsSubheading || 'Verified .gov.in & .nic.in portals maintained by Janshayak AI Admin for Students, Farmers, Health, Pensions & Jobs.'}
+                      Verified .gov.in & .nic.in portals maintained by Janshayak AI Admin for Students, Farmers, Health, Pensions & Jobs.
                     </p>
                   </div>
                   <button
@@ -1443,7 +1254,7 @@ export default function App() {
                     className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                   >
                     <Bot className="h-3.5 w-3.5 text-teal-300" />
-                    <span>{t.openAiAdminConsole || 'Open AI Admin Console'}</span>
+                    <span>Open AI Admin Console</span>
                   </button>
                 </div>
 
@@ -1460,7 +1271,7 @@ export default function App() {
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
-                      {cat === 'All' ? (t.catAll || 'All') : cat}
+                      {cat}
                     </button>
                   ))}
                 </div>
@@ -1474,7 +1285,7 @@ export default function App() {
                         {site.description && <p className="mt-2 text-sm leading-6 text-slate-600">{site.description}</p>}
                       </div>
                       <a href={site.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">
-                        {t.visitOfficialPortal || 'Visit official portal'} ({new URL(site.url).hostname}) <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Visit official portal ({new URL(site.url).hostname}) <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
                       </a>
                     </article>
                   ))}
@@ -1489,16 +1300,18 @@ export default function App() {
           <div className="space-y-6">
             {activeTab === 'profile' && (
               <header className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
-                  {currentLang === 'pa' ? 'ਨਿੱਜੀ ਨਾਗਰਿਕ ਪ੍ਰੋਫ਼ਾਈਲ' : currentLang === 'hi' ? 'निजी नागरिक प्रोफ़ाइल' : 'Private citizen profile'}
-                </p>
-                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{t.tabProfile}</h1>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('dashboard')}
+                  className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-slate-200"
+                >
+                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  Back to home
+                </button>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Private citizen profile</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">My Profile</h1>
                 <p className="mt-2 text-sm text-slate-600">
-                  {currentLang === 'pa'
-                    ? `ਤੁਹਾਡੇ ਯੋਗਤਾ ਵੇਰਵੇ ਇਸ ਡਿਵਾਈਸ 'ਤੇ ਸੇਵ ਹਨ ਅਤੇ ਸੁਪਾਬੇਸ (Supabase) ਕਲਾਊਡ ਨਾਲ ਸਿੰਕ ਕਰਨ ਲਈ ਤਿਆਰ ਹਨ। ${authUser ? cloudSyncStatus : ''}`
-                    : currentLang === 'hi'
-                      ? `आपके पात्रता विवरण इस डिवाइस पर सहेजे गए हैं और सुपाबेस (Supabase) क्लाउड के साथ सिंक करने के लिए तैयार हैं। ${authUser ? cloudSyncStatus : ''}`
-                      : `Your eligibility details are saved on this device. Sign in to sync them securely to your Supabase account. ${authUser ? cloudSyncStatus : ''}`}
+                  Your eligibility details are saved on this device. Sign in to sync them securely to your Supabase account. {authUser ? cloudSyncStatus : ''}
                 </p>
               </header>
             )}
@@ -1515,6 +1328,7 @@ export default function App() {
                 window.scrollTo({ top: 350, behavior: 'smooth' });
               }}
               onOpenAiRoadmap={() => setIsAiRoadmapOpen(true)}
+              onOpenAdminConsole={() => setActiveTab('admin')}
               eligibleCount={eligibleCount}
               potentialCount={potentialCount}
             />
@@ -1522,11 +1336,7 @@ export default function App() {
             {/* Real-time Eligible Schemes Preview */}
             <div className="space-y-4">
               <h3 className="font-bold text-sm sm:text-base text-slate-900">
-                {currentLang === 'pa'
-                  ? `ਇਸ ਪ੍ਰੋਫ਼ਾਈਲ ਲਈ ਤੁਰੰਤ ਮੇਲ ਖਾਂਦੀਆਂ ਸਕੀਮਾਂ (${evaluations.filter(e => e.isEligible || e.isPotentialMatch).length} ਸਕੀਮਾਂ)`
-                  : currentLang === 'hi'
-                    ? `इस प्रोफ़ाइल के लिए तुरंत मेल खाने वाली योजनाएं (${evaluations.filter(e => e.isEligible || e.isPotentialMatch).length} योजनाएं)`
-                    : `Instant Matching Results for this Profile (${evaluations.filter(e => e.isEligible || e.isPotentialMatch).length} Schemes)`}
+                Instant Matching Results for this Profile ({evaluations.filter(e => e.isEligible || e.isPotentialMatch).length} Schemes)
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {evaluations
@@ -1544,6 +1354,9 @@ export default function App() {
                       onOpenScanner={(s) => handleOpenScanner(s)}
                       isSaved={savedSchemeIds.has(evalItem.scheme.id)}
                       onToggleSave={handleToggleSave}
+                      isAdminRole={isAdminProfile(profile)}
+                      onEditScheme={handleEditSchemeFromCard}
+                      onDeleteScheme={(s) => handleDeleteAdminScheme(s.id)}
                     />
                   ))}
               </div>
@@ -1554,6 +1367,16 @@ export default function App() {
         {activeTab === 'admin' && (
           <AdminConsole
             user={authUser}
+            userRole={profile.role ?? 'Citizen'}
+            onDesignateRole={handleDesignateRole}
+            allSchemes={allSchemes}
+            adminKnowledgeState={adminKnowledgeState}
+            onAddAdminScheme={handleAddAdminScheme}
+            onUpdateAdminScheme={handleUpdateAdminScheme}
+            onDeleteAdminScheme={handleDeleteAdminScheme}
+            onRestoreDeletedSchemes={handleRestoreDeletedSchemes}
+            initialEditScheme={adminEditTargetScheme}
+            onClearInitialEditScheme={() => setAdminEditTargetScheme(null)}
             sites={managedSites}
             onSitesChange={setManagedSites}
             aiAddedSchemes={aiAddedSchemes}
@@ -1592,19 +1415,13 @@ export default function App() {
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-1.5 bg-amber-400/20 text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-300/30">
                     <Bookmark className="w-3.5 h-3.5 fill-amber-300" />
-                    <span>
-                      {currentLang === 'pa' ? 'ਨਿੱਜੀ ਸਕੀਮ ਵਾਲਟ' : currentLang === 'hi' ? 'व्यक्तिगत योजना तिजोरी' : 'Personal Scheme Vault'}
-                    </span>
+                    <span>Personal Scheme Vault</span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
                     {t.tabSaved} ({savedSchemeIds.size})
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-                    {currentLang === 'pa'
-                      ? 'ਤੁਹਾਡੀਆਂ ਸੇਵ ਕੀਤੀਆਂ ਭਲਾਈ ਸਕੀਮਾਂ ਦੀ ਸਮੀਖਿਆ ਕਰੋ ਅਤੇ ਜਦੋਂ ਤੁਸੀਂ ਅਪਲਾਈ ਕਰਨ ਲਈ ਤਿਆਰ ਹੋਵੋ ਤਾਂ ਉਨ੍ਹਾਂ ਨੂੰ ਅਰਜ਼ੀ ਟਰੈਕਰ ਵਿੱਚ ਸ਼ਾਮਲ ਕਰੋ।'
-                      : currentLang === 'hi'
-                        ? 'सहेजी गई कल्याणकारी योजनाओं की समीक्षा करें और आवेदन के लिए तैयार होने पर उन्हें अपने आवेदन ट्रैकर में जोड़ें।'
-                        : 'Review and compare the welfare schemes you have bookmarked. Add them to your Application Journey Tracker when you are ready to apply.'}
+                    Review and compare the welfare schemes you have bookmarked. Add them to your Application Journey Tracker when you are ready to apply.
                   </p>
                 </div>
 
@@ -1615,7 +1432,7 @@ export default function App() {
                     className="flex items-center gap-1.5 text-xs font-semibold bg-white/10 hover:bg-rose-500/20 text-slate-200 hover:text-rose-200 border border-white/20 px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>{currentLang === 'pa' ? 'ਸਾਰੀਆਂ ਹਟਾਓ' : currentLang === 'hi' ? 'सभी हटाएं' : 'Clear All Saved'}</span>
+                    <span>Clear All Saved</span>
                   </button>
                 )}
               </div>
@@ -1636,6 +1453,9 @@ export default function App() {
                     onOpenScanner={(s) => handleOpenScanner(s)}
                     isSaved={true}
                     onToggleSave={handleToggleSave}
+                    isAdminRole={isAdminProfile(profile)}
+                    onEditScheme={handleEditSchemeFromCard}
+                    onDeleteScheme={(s) => handleDeleteAdminScheme(s.id)}
                   />
                 ))}
               </div>
@@ -1651,7 +1471,7 @@ export default function App() {
                   onClick={() => setActiveTab('dashboard')}
                   className="mt-3 inline-flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs transition-colors cursor-pointer"
                 >
-                  <span>{t.backToHome || 'Browse Schemes Directory'}</span>
+                  <span>Browse Schemes Directory</span>
                 </button>
               </div>
             )}
@@ -1662,7 +1482,6 @@ export default function App() {
         {activeTab === 'video-guides' && (
           <VideoGuidesHub
             currentLang={currentLang}
-            schemes={allSchemes}
             initialSchemeId={videoTutorialSchemeId}
             onSelectScheme={(s) => setSelectedScheme(s)}
             onTrackScheme={handleTrackScheme}
@@ -1760,7 +1579,6 @@ export default function App() {
             setSelectedScheme(null);
             setAiAdvisorScheme(s);
           }}
-          profile={profile}
         />
       )}
 
@@ -1795,6 +1613,7 @@ export default function App() {
       {isAiRoadmapOpen && (
         <AiProfileRoadmapModal
           profile={profile}
+          schemes={allSchemes}
           currentLang={currentLang}
           onClose={() => setIsAiRoadmapOpen(false)}
           onOpenVoiceAssistant={() => {
@@ -1830,6 +1649,7 @@ export default function App() {
         onClose={() => setIsVoiceAssistantOpen(false)}
         currentLang={currentLang}
         userProfile={profile}
+        schemes={allSchemes}
         initialQuestion={assistantInitialQuestion}
         onInitialQuestionHandled={() => setAssistantInitialQuestion('')}
         onAppAction={(action) => {
@@ -1861,7 +1681,7 @@ export default function App() {
           aria-label="Open multilingual Voice AI"
         >
           <Mic className="h-6 w-6" aria-hidden="true" />
-          <span>{t.voiceAiButton || 'Voice AI'}</span>
+          <span>Voice AI</span>
         </button>
       )}
 
@@ -1878,47 +1698,49 @@ export default function App() {
                   PB
                 </div>
                 <span className="font-extrabold text-white text-sm">
-                  {t.appTitle} (CTBF-AI-07)
+                  {t.appTitle}
                 </span>
               </div>
               <p className="text-slate-400 text-xs leading-relaxed max-w-md">
-                {t.footerDescription || 'An intelligent e-governance decision support system built for CT BuildFest 2.0 to empower citizens of Punjab in discovering, verifying, and claiming their statutory government welfare entitlements.'}
+                {t.footerDescription}
               </p>
               <div className="flex items-center gap-2 text-[11px] text-teal-400 font-semibold pt-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>{t.footerZeroBrokerage || 'Zero Private Brokerage • 100% Free Public Good'}</span>
+                <span>{t.footerZeroBrokerage}</span>
               </div>
             </div>
 
             <div>
               <h5 className="font-bold text-white uppercase tracking-wider text-[11px] mb-2">
-                {t.footerKeyPortals || 'Key Citizen Portals'}
+                {t.footerKeyPortals}
               </h5>
               <ul className="space-y-1.5 text-slate-400">
-                <li><a href="https://punjab.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">punjab.gov.in ({t.punjabGovt})</a></li>
+                <li><a href="https://punjab.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">punjab.gov.in (Official Govt)</a></li>
                 <li><a href="https://esewa.punjab.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">esewa.punjab.gov.in (Sewa Kendra)</a></li>
-                <li><a href="https://myscheme.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">myscheme.gov.in ({t.centralGovt})</a></li>
+                <li><a href="https://myscheme.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">myscheme.gov.in (National Portal)</a></li>
                 <li><a href="https://sha.punjab.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">sha.punjab.gov.in (Ayushman Sehat)</a></li>
               </ul>
             </div>
 
             <div>
               <h5 className="font-bold text-white uppercase tracking-wider text-[11px] mb-2">
-                {t.footerHelplines || 'Government Helplines'}
+                {t.footerHelplines}
               </h5>
               <ul className="space-y-1.5 text-slate-400">
-                <li>{t.footerGrievance || 'Citizen Grievance'}: <strong className="text-white">1100</strong></li>
-                <li>{t.footerCyberCrime || 'National Cyber Crime'}: <strong className="text-white">1930</strong></li>
-                <li>{t.footerWomenHelpline || 'Women in Distress'}: <strong className="text-white">1091</strong></li>
-                <li>{t.footerChildline || 'Childline Helpline'}: <strong className="text-white">1098</strong></li>
-                <li>{t.footerKisanCenter || 'Kisan Call Center'}: <strong className="text-white">1800-180-1551</strong></li>
+                <li>{t.footerGrievance}: <strong className="text-white">1100</strong></li>
+                <li>{t.footerCyberCrime}: <strong className="text-white">1930</strong></li>
+                <li>{t.footerWomenHelpline}: <strong className="text-white">1091</strong></li>
+                <li>{t.footerChildline}: <strong className="text-white">1098</strong></li>
+                <li>{t.footerKisanCenter}: <strong className="text-white">1800-180-1551</strong></li>
               </ul>
             </div>
           </div>
 
-          <div className="pt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-            <span>© 2026 Government Scheme Eligibility Navigator • Developed for CT BuildFest 2.0</span>
-            <span>All official citations sourced directly from gazetted government notifications</span>
+          <div className="pt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+            <span className="font-bold text-teal-300 tracking-wide">
+              {t.footerMadeBy}
+            </span>
+            <span>{t.footerCitations}</span>
           </div>
         </div>
       </footer>

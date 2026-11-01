@@ -3,6 +3,7 @@ import { Language, CitizenProfile, Scheme } from '../types/scheme';
 import type { AssistantAppAction } from '../../../shared/types/backend';
 import { TRANSLATIONS } from '../data/translations';
 import { GOV_SCHEMES } from '../data/schemes';
+import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
 import { 
   X, 
   Send, 
@@ -61,6 +62,7 @@ interface ChatbotDrawerProps {
   onClose: () => void;
   currentLang: Language;
   userProfile: CitizenProfile;
+  schemes?: Scheme[];
   initialQuestion: string;
   onInitialQuestionHandled: () => void;
   onAppAction: (action: AssistantAppAction) => void;
@@ -72,6 +74,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
   onClose,
   currentLang,
   userProfile,
+  schemes = GOV_SCHEMES,
   initialQuestion,
   onInitialQuestionHandled,
   onAppAction,
@@ -308,6 +311,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
           message: query,
           language: voiceLanguage,
           userProfile,
+          knowledgeBase: buildAiKnowledgeSummary(schemes),
           consentGiven: hasConsent,
           conversationHistory: messages.slice(-4).map(m => ({ role: m.sender, content: m.text }))
         })
@@ -638,7 +642,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                     {assistantLang === 'pa' ? 'ਸਿਫਾਰਸ਼ ਕੀਤੀਆਂ ਸਕੀਮਾਂ:' : 'Recommended Schemes:'}
                   </span>
                   {msg.recommendedSchemeIds.map((schemeId) => {
-                    const scheme = GOV_SCHEMES.find(s => s.id === schemeId);
+                    const scheme = schemes.find(s => s.id === schemeId) || GOV_SCHEMES.find(s => s.id === schemeId);
                     if (!scheme) return null;
                     const schemeTitle = assistantLang === 'pa' ? scheme.titlePa : assistantLang === 'hi' ? scheme.titleHi : scheme.titleEn;
 

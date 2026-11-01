@@ -422,7 +422,7 @@ export function getGovernmentPrintTemplate(scheme: Scheme, lang: 'en' | 'pa' | '
 
   <!-- Footer -->
   <div class="helpline-footer">
-    Official Helpline: ${isPunjab ? 'Punjab Citizen Helpline 1100 (Toll-Free)' : 'National Citizen Helpdesk 1800-11-0031'} • Generated via Punjab Scheme Navigator AI (CTBF-AI-07)
+    Official Helpline: ${isPunjab ? 'Punjab Citizen Helpline 1100 (Toll-Free)' : 'National Citizen Helpdesk 1800-11-0031'} • Generated via Janshayak AI (Made by Team Elite Tech)
   </div>
 
 </body>

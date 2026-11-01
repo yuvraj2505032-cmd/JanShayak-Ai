@@ -324,10 +324,61 @@ app.post('/api/eligibility', (req, res) => {
   }
 });
 
+// Dynamic Admin-Managed AI Knowledge Base Override
+let ADMIN_KNOWLEDGE_BASE_OVERRIDE: typeof SCHEME_KNOWLEDGE | null = null;
+
+function sanitizeKnowledgeEntries(rawList: unknown): typeof SCHEME_KNOWLEDGE | null {
+  if (!Array.isArray(rawList) || rawList.length === 0) return null;
+  const sanitized = rawList
+    .filter((item): item is Record<string, any> => Boolean(item) && typeof item === 'object' && typeof (item as any).id === 'string' && typeof (item as any).nameEn === 'string')
+    .slice(0, 100)
+    .map((item) => ({
+      id: String(item.id).slice(0, 120),
+      nameEn: String(item.nameEn).slice(0, 240),
+      namePa: String(item.namePa || item.nameEn).slice(0, 240),
+      nameHi: String(item.nameHi || item.nameEn).slice(0, 240),
+      level: String(item.level || 'Punjab State').slice(0, 80),
+      department: String(item.department || 'Government of Punjab').slice(0, 200),
+      benefits: String(item.benefits || '').slice(0, 300),
+      eligibility: item.eligibility && typeof item.eligibility === 'object' ? item.eligibility : { gender: 'All', districts: ['All'] },
+      documents: Array.isArray(item.documents) ? item.documents.map((d: unknown) => String(d).slice(0, 160)).slice(0, 12) : [],
+      portal: String(item.portal || 'https://punjab.gov.in').slice(0, 240),
+      sourceCitation: String(item.sourceCitation || 'Admin Knowledge Base · Verified Gazette Entry').slice(0, 240)
+    }));
+  return sanitized.length > 0 ? sanitized : null;
+}
+
+app.get('/api/admin/knowledge-base', (_req, res) => {
+  const active = ADMIN_KNOWLEDGE_BASE_OVERRIDE ?? SCHEME_KNOWLEDGE;
+  res.json({
+    status: 'ok',
+    count: active.length,
+    isAdminModified: Boolean(ADMIN_KNOWLEDGE_BASE_OVERRIDE),
+    knowledgeBase: active
+  });
+});
+
+app.post('/api/admin/knowledge-base', (req, res) => {
+  const { role, knowledgeBase } = req.body || {};
+  if (role !== 'Admin') {
+    return res.status(403).json({ error: 'Admin role is required in user profile state to update the AI knowledge base.' });
+  }
+  const parsed = sanitizeKnowledgeEntries(knowledgeBase);
+  if (!parsed) {
+    return res.status(400).json({ error: 'Valid knowledgeBase array is required.' });
+  }
+  ADMIN_KNOWLEDGE_BASE_OVERRIDE = parsed;
+  return res.json({
+    status: 'synced',
+    count: ADMIN_KNOWLEDGE_BASE_OVERRIDE.length,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // API Route: AI Scheme Assistant Chatbot
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, language = 'en', userProfile } = req.body;
+    const { message, language = 'en', userProfile, knowledgeBase } = req.body;
     const consentGiven = req.body.consentGiven === true;
 
     if (typeof message !== 'string' || !message.trim()) {
@@ -336,6 +387,8 @@ app.post('/api/chat', async (req, res) => {
     if (message.length > 2000) {
       return res.status(400).json({ error: 'Message must be 2000 characters or fewer' });
     }
+
+    const activeKnowledge = sanitizeKnowledgeEntries(knowledgeBase) ?? ADMIN_KNOWLEDGE_BASE_OVERRIDE ?? SCHEME_KNOWLEDGE;
 
     const langName = getLanguageName(language);
     const languagePrefix = String(language).toLowerCase().split(/[-_]/)[0];
@@ -355,7 +408,7 @@ app.post('/api/chat', async (req, res) => {
       : [];
     const safeProfile = userProfile && typeof userProfile === 'object'
       ? Object.fromEntries(
-          ['age', 'income', 'occupation', 'category', 'district', 'gender']
+          ['age', 'income', 'occupation', 'category', 'district', 'gender', 'role']
             .filter(key => ['string', 'number'].includes(typeof userProfile[key]))
             .map(key => [key, typeof userProfile[key] === 'string' ? userProfile[key].slice(0, 100) : userProfile[key]])
         )
@@ -364,15 +417,18 @@ app.post('/api/chat', async (req, res) => {
     // Fallback rule-based grounded answering if Gemini API key is not configured or in case of error
     const getFallbackAnswer = () => {
       const q = message.toLocaleLowerCase();
-      let matched = SCHEME_KNOWLEDGE.filter(s => {
-        const text = `${s.nameEn} ${s.namePa} ${s.nameHi} ${s.benefits} ${s.level}`.toLowerCase();
-        return text.includes(q) 
+      const queryWords = q.split(/\s+/).filter(w => w.length >= 3);
+      let matched = activeKnowledge.filter(s => {
+        const text = `${s.nameEn} ${s.namePa} ${s.nameHi} ${s.benefits} ${s.level} ${s.department}`.toLowerCase();
+        const wordHit = queryWords.some(word => text.includes(word));
+        return text.includes(q)
+          || wordHit
           || (q.includes('farmer') && (s.id.includes('kisan') || s.id.includes('bima') || s.id.includes('crop')))
           || (q.includes('ਕਿਸਾਨ') && (s.id.includes('kisan') || s.id.includes('bima') || s.id.includes('crop')))
           || (q.includes('ਖੇਤੀ') && (s.id.includes('kisan') || s.id.includes('crop')))
-          || (q.includes('student') && (s.id.includes('matric') || s.id.includes('vidya')))
-          || (q.includes('ਵਿਦਿਆਰਥੀ') && (s.id.includes('matric') || s.id.includes('vidya')))
-          || (q.includes('scholarship') && s.id.includes('matric'))
+          || (q.includes('student') && (s.id.includes('matric') || s.id.includes('vidya') || text.includes('student') || text.includes('scholarship')))
+          || (q.includes('ਵਿਦਿਆਰਥੀ') && (s.id.includes('matric') || s.id.includes('vidya') || text.includes('student')))
+          || (q.includes('scholarship') && (s.id.includes('matric') || text.includes('scholarship')))
           || (q.includes('ਵਜ਼ੀਫਾ') && s.id.includes('matric'))
           || (q.includes('women') && (s.id.includes('ashirwad') || s.id.includes('widow') || s.id.includes('ujjwala') || s.id.includes('sukanya')))
           || (q.includes('ਔਰਤ') && (s.id.includes('ashirwad') || s.id.includes('widow') || s.id.includes('ujjwala') || s.id.includes('sukanya')))
@@ -464,7 +520,7 @@ app.post('/api/chat', async (req, res) => {
     const systemPrompt = `You are Jansahayak AI, a helpful assistant for Punjab and Central Government schemes. You may answer general questions too, but do not claim unsupported facts and clearly state uncertainty. You are not an agent that can change account data or submit applications.
 STRICT ACCURACY & SAFETY RULES:
 1. Use verified facts from this scheme database and official website results:
-${JSON.stringify(SCHEME_KNOWLEDGE)}
+${JSON.stringify(activeKnowledge)}
 ${searchContext}
 2. Reply strictly in ${langName}.
 3. Use only facts supported by the scheme database or official source context. Do not invent eligibility, benefits, dates, links, or citations. Tell users to verify changing rules on official portals.
@@ -477,7 +533,7 @@ ${searchContext}
 
     const makeAssistantResponse = (rawText: string) => {
       const parsed = parseAssistantOutput(rawText);
-      const mentionedIds = SCHEME_KNOWLEDGE
+      const mentionedIds = activeKnowledge
         .filter(s => parsed.reply.toLowerCase().includes(s.nameEn.toLowerCase()) || parsed.reply.includes(s.namePa) || parsed.reply.includes(s.nameHi))
         .map(s => s.id)
         .slice(0, 3);
@@ -486,7 +542,7 @@ ${searchContext}
         ...(parsed.action ? { action: parsed.action } : {}),
         recommendedSchemeIds: mentionedIds,
         isAiGrounded: mentionedIds.length > 0 || officialSources.length > 0,
-        sources: SCHEME_KNOWLEDGE.filter(s => mentionedIds.includes(s.id)).map(s => s.sourceCitation),
+        sources: activeKnowledge.filter(s => mentionedIds.includes(s.id)).map(s => s.sourceCitation),
         officialSources,
         consentAcknowledged: Boolean(consentGiven),
         dataStored: false
@@ -529,8 +585,23 @@ ${searchContext}
 // API Route: AI Scheme Advisor (Per-scheme customized AI evaluation)
 app.post('/api/ai/advisor', async (req, res) => {
   try {
-    const { schemeId, userProfile, language = 'en' } = req.body;
-    const targetScheme = SCHEMES_DATABASE.find(s => s.id === schemeId) || 
+    const { schemeId, schemeData, userProfile, language = 'en' } = req.body;
+    const overrideMatch = ADMIN_KNOWLEDGE_BASE_OVERRIDE?.find(s => s.id === schemeId);
+    const targetScheme = (schemeData && typeof schemeData === 'object' ? schemeData : null) ||
+      (overrideMatch ? {
+        id: overrideMatch.id,
+        titleEn: overrideMatch.nameEn,
+        titlePa: overrideMatch.namePa,
+        titleHi: overrideMatch.nameHi,
+        level: overrideMatch.level,
+        departmentEn: overrideMatch.department,
+        benefitAmountText: overrideMatch.benefits,
+        eligibility: overrideMatch.eligibility,
+        documents: overrideMatch.documents,
+        officialPortalUrl: overrideMatch.portal,
+        sourceCitation: overrideMatch.sourceCitation
+      } : null) ||
+      SCHEMES_DATABASE.find(s => s.id === schemeId) || 
       (GOV_SCHEMES.find(s => s.id === schemeId) as any);
 
     if (!targetScheme) {
@@ -614,8 +685,9 @@ Provide a well-structured assessment in ${langName}:
 // API Route: AI Full Profile Analysis & Welfare Roadmap
 app.post('/api/ai/profile-analysis', async (req, res) => {
   try {
-    const { userProfile, language = 'en' } = req.body;
+    const { userProfile, language = 'en', knowledgeBase } = req.body;
     const langName = language === 'pa' ? 'Punjabi (ਗੁਰਮੁਖੀ)' : language === 'hi' ? 'Hindi (हिन्दी)' : 'English';
+    const activeKnowledge = sanitizeKnowledgeEntries(knowledgeBase) ?? ADMIN_KNOWLEDGE_BASE_OVERRIDE ?? SCHEME_KNOWLEDGE;
 
     const prompt = `Perform a comprehensive welfare eligibility audit for this citizen living in Punjab, India:
 Citizen Profile:
@@ -629,7 +701,7 @@ Citizen Profile:
 - Punjab Domicile: ${userProfile?.isPunjabDomicile !== false ? 'Yes' : 'No'}
 
 Available Government Schemes Knowledge:
-${JSON.stringify(SCHEME_KNOWLEDGE.slice(0, 15))}
+${JSON.stringify(activeKnowledge.slice(0, 20))}
 
 Generate an inspiring, highly practical Government Welfare Roadmap in ${langName}:
 1. Top 3-5 Highest Impact Schemes they should apply for immediately.

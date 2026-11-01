@@ -13,9 +13,15 @@ import {
   Globe,
   Youtube,
   Play,
-  Calculator
+  Calculator,
+  ShieldCheck,
+  Lock,
+  Database,
+  RotateCcw,
+  Search
 } from 'lucide-react';
-import type { CitizenProfile, ManagedOfficialSite, Scheme } from '../types/scheme';
+import type { CitizenProfile, ManagedOfficialSite, Occupation, Scheme, SchemeLevel, UserRole } from '../types/scheme';
+import type { AdminSchemeFormInput, AdminSchemeKnowledgeState } from '../utils/adminSchemeManager';
 import { getSchemeYoutubeBundle } from '../data/schemeVideos';
 import { parseCitizenProfile } from '../lib/citizenCloudSync';
 import { supabase } from '../lib/supabase';
@@ -33,6 +39,16 @@ export interface AiAdminLogEntry {
 
 interface AdminConsoleProps {
   user: User | null;
+  userRole?: UserRole;
+  onDesignateRole?: (role: UserRole) => void;
+  allSchemes?: Scheme[];
+  adminKnowledgeState?: AdminSchemeKnowledgeState;
+  onAddAdminScheme?: (input: AdminSchemeFormInput) => Scheme;
+  onUpdateAdminScheme?: (existingScheme: Scheme, input: AdminSchemeFormInput) => Scheme;
+  onDeleteAdminScheme?: (schemeId: string) => void;
+  onRestoreDeletedSchemes?: () => void;
+  initialEditScheme?: Scheme | null;
+  onClearInitialEditScheme?: () => void;
   sites: ManagedOfficialSite[];
   onSitesChange: (sites: ManagedOfficialSite[]) => void;
   aiAddedSchemes?: Scheme[];
@@ -53,6 +69,38 @@ interface CitizenRecord {
 
 const EMPTY_FORM = { title: '', url: '', description: '', category: 'Students & Education' };
 
+interface SchemeCrudFormState {
+  titleEn: string;
+  titlePa: string;
+  level: SchemeLevel;
+  departmentEn: string;
+  benefitAmountText: string;
+  benefitType: Scheme['benefitType'];
+  descriptionEn: string;
+  minAge: string;
+  maxAge: string;
+  maxIncome: string;
+  targetOccupation: string;
+  officialPortalUrl: string;
+  requiredDocumentsText: string;
+}
+
+const EMPTY_SCHEME_FORM: SchemeCrudFormState = {
+  titleEn: '',
+  titlePa: '',
+  level: 'Punjab State',
+  departmentEn: 'Department of Social Justice & Citizen Welfare, Punjab',
+  benefitAmountText: '',
+  benefitType: 'Direct Cash Transfer',
+  descriptionEn: '',
+  minAge: '18',
+  maxAge: '65',
+  maxIncome: '300000',
+  targetOccupation: 'All',
+  officialPortalUrl: 'https://punjab.gov.in',
+  requiredDocumentsText: 'Aadhaar Card linked with Mobile, Punjab Residence / Domicile Certificate, Active Bank Passbook (NPCI mapped)'
+};
+
 function isOfficialUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -72,6 +120,16 @@ function isOfficialUrl(value: string): boolean {
 
 export const AdminConsole: React.FC<AdminConsoleProps> = ({
   user,
+  userRole = 'Citizen',
+  onDesignateRole,
+  allSchemes = [],
+  adminKnowledgeState,
+  onAddAdminScheme,
+  onUpdateAdminScheme,
+  onDeleteAdminScheme,
+  onRestoreDeletedSchemes,
+  initialEditScheme = null,
+  onClearInitialEditScheme,
   sites,
   onSitesChange,
   aiAddedSchemes = [],
@@ -92,6 +150,117 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   const [formSuccess, setFormSuccess] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [customAiTopic, setCustomAiTopic] = useState('');
+
+  // Admin Role & AI Knowledge Base Scheme CRUD State
+  const isProfileAdmin = userRole === 'Admin';
+  const [schemeForm, setSchemeForm] = useState<SchemeCrudFormState>(EMPTY_SCHEME_FORM);
+  const [editingScheme, setEditingScheme] = useState<Scheme | null>(null);
+  const [schemeFormError, setSchemeFormError] = useState('');
+  const [schemeFormSuccess, setSchemeFormSuccess] = useState('');
+  const [kbSearchQuery, setKbSearchQuery] = useState('');
+
+  const populateFormForEdit = (scheme: Scheme) => {
+    setEditingScheme(scheme);
+    setSchemeForm({
+      titleEn: scheme.titleEn,
+      titlePa: scheme.titlePa || '',
+      level: scheme.level,
+      departmentEn: scheme.departmentEn,
+      benefitAmountText: scheme.benefitAmountText,
+      benefitType: scheme.benefitType,
+      descriptionEn: scheme.descriptionEn,
+      minAge: scheme.minAge !== undefined ? String(scheme.minAge) : '',
+      maxAge: scheme.maxAge !== undefined ? String(scheme.maxAge) : '',
+      maxIncome: scheme.maxIncome !== undefined ? String(scheme.maxIncome) : '',
+      targetOccupation: scheme.eligibleOccupations?.[0] ?? 'All',
+      officialPortalUrl: scheme.officialPortalUrl,
+      requiredDocumentsText: scheme.requiredDocuments.map((d) => d.nameEn).join(', ')
+    });
+    setSchemeFormError('');
+    setSchemeFormSuccess('');
+  };
+
+  useEffect(() => {
+    if (initialEditScheme) {
+      populateFormForEdit(initialEditScheme);
+      onClearInitialEditScheme?.();
+    }
+  }, [initialEditScheme]);
+
+  const handleSchemeFormSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSchemeFormError('');
+    setSchemeFormSuccess('');
+
+    if (!isProfileAdmin) {
+      setSchemeFormError("Designate the 'Admin' role in your profile first to add or edit schemes.");
+      return;
+    }
+
+    try {
+      const input: AdminSchemeFormInput = {
+        titleEn: schemeForm.titleEn,
+        titlePa: schemeForm.titlePa,
+        level: schemeForm.level,
+        departmentEn: schemeForm.departmentEn,
+        benefitAmountText: schemeForm.benefitAmountText,
+        benefitType: schemeForm.benefitType,
+        descriptionEn: schemeForm.descriptionEn,
+        minAge: schemeForm.minAge.trim() ? Number(schemeForm.minAge) : undefined,
+        maxAge: schemeForm.maxAge.trim() ? Number(schemeForm.maxAge) : undefined,
+        maxIncome: schemeForm.maxIncome.trim() ? Number(schemeForm.maxIncome) : undefined,
+        eligibleOccupations:
+          schemeForm.targetOccupation !== 'All'
+            ? [schemeForm.targetOccupation as Occupation]
+            : undefined,
+        officialPortalUrl: schemeForm.officialPortalUrl,
+        requiredDocumentsText: schemeForm.requiredDocumentsText
+      };
+
+      if (editingScheme && onUpdateAdminScheme) {
+        const updated = onUpdateAdminScheme(editingScheme, input);
+        setSchemeFormSuccess(`Updated "${updated.titleEn}" in the AI Knowledge Base.`);
+        setEditingScheme(null);
+        setSchemeForm(EMPTY_SCHEME_FORM);
+      } else if (onAddAdminScheme) {
+        const created = onAddAdminScheme(input);
+        setSchemeFormSuccess(`Added "${created.titleEn}" to the AI Knowledge Base.`);
+        setSchemeForm(EMPTY_SCHEME_FORM);
+      }
+    } catch (err) {
+      setSchemeFormError(err instanceof Error ? err.message : 'Could not save scheme.');
+    }
+  };
+
+  const handleDeleteSchemeClick = (scheme: Scheme) => {
+    setSchemeFormError('');
+    setSchemeFormSuccess('');
+    if (!isProfileAdmin) {
+      setSchemeFormError("Designate the 'Admin' role in your profile first to delete schemes.");
+      return;
+    }
+    try {
+      onDeleteAdminScheme?.(scheme.id);
+      if (editingScheme?.id === scheme.id) {
+        setEditingScheme(null);
+        setSchemeForm(EMPTY_SCHEME_FORM);
+      }
+      setSchemeFormSuccess(`Deleted "${scheme.titleEn}" from the AI Knowledge Base.`);
+    } catch (err) {
+      setSchemeFormError(err instanceof Error ? err.message : 'Could not delete scheme.');
+    }
+  };
+
+  const filteredKbSchemes = allSchemes.filter((s) => {
+    if (!kbSearchQuery.trim()) return true;
+    const q = kbSearchQuery.toLowerCase();
+    return (
+      s.titleEn.toLowerCase().includes(q) ||
+      s.departmentEn.toLowerCase().includes(q) ||
+      s.benefitAmountText.toLowerCase().includes(q) ||
+      s.id.toLowerCase().includes(q)
+    );
+  });
 
   useEffect(() => {
     let active = true;
@@ -294,6 +463,425 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
           </div>
         </div>
       </header>
+
+      {/* ADMIN ROLE DESIGNATION & AI KNOWLEDGE BASE SCHEME MANAGER (ADD / EDIT / DELETE) */}
+      <section
+        aria-label="AI Knowledge Base Scheme Manager"
+        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 space-y-6"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-5">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 border border-blue-200">
+              <Database className="h-3.5 w-3.5 text-blue-700" />
+              <span>AI Knowledge Base CRUD Manager · {allSchemes.length} Active Schemes</span>
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
+              Manage Government Scheme Entries for AI Knowledge Base
+            </h2>
+            <p className="text-sm text-slate-600 max-w-2xl">
+              Manually add, edit, or delete government scheme entries directly from the UI. Every change immediately updates the Eligibility Engine and the AI Assistant&apos;s live knowledge base.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className={`h-4 w-4 ${isProfileAdmin ? 'text-emerald-600' : 'text-slate-400'}`} />
+              <span className="text-xs font-bold text-slate-700">
+                Profile Role:
+              </span>
+              <span
+                data-testid="admin-console-role-status"
+                className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
+                  isProfileAdmin
+                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {userRole}
+              </span>
+            </div>
+
+            {onDesignateRole && (
+              <button
+                type="button"
+                data-testid="designate-admin-role-btn"
+                onClick={() => onDesignateRole(isProfileAdmin ? 'Citizen' : 'Admin')}
+                className={`rounded-xl px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
+                  isProfileAdmin
+                    ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                    : 'bg-blue-700 text-white shadow-xs hover:bg-blue-800'
+                }`}
+              >
+                {isProfileAdmin ? "Switch Role to 'Citizen'" : "Designate 'Admin' Role"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {!isProfileAdmin ? (
+          <div
+            data-testid="admin-role-locked-banner"
+            className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 flex flex-wrap items-center justify-between gap-4"
+          >
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-amber-950">
+                  Admin Role Required in User Profile State
+                </h3>
+                <p className="text-xs text-amber-900 max-w-xl leading-relaxed">
+                  Your profile is currently set to the <strong>Citizen</strong> role. Designate the <strong>Admin</strong> role in your user profile state to unlock manually adding, editing, or deleting government scheme entries for the AI&apos;s knowledge base.
+                </p>
+              </div>
+            </div>
+            {onDesignateRole && (
+              <button
+                type="button"
+                onClick={() => onDesignateRole('Admin')}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 text-xs font-extrabold shadow-xs transition cursor-pointer"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span>Unlock Admin Role Now</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Manual Add / Edit Scheme Form */}
+            <form
+              onSubmit={handleSchemeFormSubmit}
+              data-testid="admin-scheme-crud-form"
+              className="grid gap-4 rounded-2xl border border-blue-100 bg-slate-50/90 p-5 sm:grid-cols-2 lg:grid-cols-3"
+            >
+              <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  {editingScheme ? (
+                    <>
+                      <Pencil className="h-4 w-4 text-blue-700" />
+                      <span>Editing Scheme Entry: {editingScheme.titleEn}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 text-teal-700" />
+                      <span>Manually Add New Government Scheme to AI Knowledge Base</span>
+                    </>
+                  )}
+                </h3>
+                {editingScheme && (
+                  <span className="rounded-md bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-900">
+                    ID: {editingScheme.id}
+                  </span>
+                )}
+              </div>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Scheme Title (English) *
+                <input
+                  required
+                  data-testid="admin-scheme-title-input"
+                  value={schemeForm.titleEn}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, titleEn: e.target.value })}
+                  placeholder="e.g., Punjab Youth AI Skill Grant 2026"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Scheme Title (Punjabi / ਪੰਜਾਬੀ)
+                <input
+                  value={schemeForm.titlePa}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, titlePa: e.target.value })}
+                  placeholder="e.g., ਪੰਜਾਬ ਯੂਥ ਏ.ਆਈ ਸਕਿੱਲ ਗ੍ਰਾਂਟ"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Department / Ministry *
+                <input
+                  required
+                  data-testid="admin-scheme-dept-input"
+                  value={schemeForm.departmentEn}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, departmentEn: e.target.value })}
+                  placeholder="Department of Higher Education, Punjab"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Benefit Amount / Entitlement *
+                <input
+                  required
+                  data-testid="admin-scheme-benefit-input"
+                  value={schemeForm.benefitAmountText}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, benefitAmountText: e.target.value })}
+                  placeholder="e.g., ₹30,000 / year Direct Grant"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Benefit Category Type
+                <select
+                  data-testid="admin-scheme-benefit-type-select"
+                  value={schemeForm.benefitType}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, benefitType: e.target.value as Scheme['benefitType'] })}
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="Scholarship">Scholarship</option>
+                  <option value="Direct Cash Transfer">Direct Cash Transfer</option>
+                  <option value="Subsidy">Subsidy</option>
+                  <option value="Health Cover">Health Cover</option>
+                  <option value="Pension">Pension</option>
+                  <option value="Loan/Credit">Loan/Credit</option>
+                  <option value="Housing">Housing</option>
+                  <option value="In-Kind/Ration">In-Kind/Ration</option>
+                </select>
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Government Level
+                <select
+                  data-testid="admin-scheme-level-select"
+                  value={schemeForm.level}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, level: e.target.value as SchemeLevel })}
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="Punjab State">Punjab State</option>
+                  <option value="Central Government">Central Government</option>
+                </select>
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Target Occupation
+                <select
+                  value={schemeForm.targetOccupation}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, targetOccupation: e.target.value })}
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="All">All Occupations</option>
+                  <option value="Student">Student</option>
+                  <option value="Farmer">Farmer</option>
+                  <option value="Daily Wage Worker">Daily Wage Worker</option>
+                  <option value="Self-Employed">Self-Employed</option>
+                  <option value="Unemployed Youth">Unemployed Youth</option>
+                  <option value="Senior Citizen">Senior Citizen</option>
+                  <option value="Homemaker">Homemaker</option>
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-semibold text-slate-700">
+                  Min Age
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={schemeForm.minAge}
+                    onChange={(e) => setSchemeForm({ ...schemeForm, minAge: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-slate-700">
+                  Max Age
+                  <input
+                    type="number"
+                    min="0"
+                    max="120"
+                    value={schemeForm.maxAge}
+                    onChange={(e) => setSchemeForm({ ...schemeForm, maxAge: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </label>
+              </div>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Max Annual Income Ceiling (₹)
+                <input
+                  type="number"
+                  step="10000"
+                  min="0"
+                  value={schemeForm.maxIncome}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, maxIncome: e.target.value })}
+                  placeholder="300000"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                />
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700">
+                Official Portal URL *
+                <input
+                  required
+                  type="url"
+                  data-testid="admin-scheme-portal-input"
+                  value={schemeForm.officialPortalUrl}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, officialPortalUrl: e.target.value })}
+                  placeholder="https://punjab.gov.in"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                />
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700 sm:col-span-2">
+                Required Documents (comma-separated)
+                <input
+                  value={schemeForm.requiredDocumentsText}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, requiredDocumentsText: e.target.value })}
+                  placeholder="Aadhaar Card, Punjab Domicile Certificate, Bank Passbook"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                />
+              </label>
+
+              <label className="text-xs font-semibold text-slate-700 sm:col-span-2 lg:col-span-3">
+                Scheme Description &amp; AI Grounding Summary *
+                <textarea
+                  required
+                  rows={2}
+                  data-testid="admin-scheme-desc-input"
+                  value={schemeForm.descriptionEn}
+                  onChange={(e) => setSchemeForm({ ...schemeForm, descriptionEn: e.target.value })}
+                  placeholder="Explain key benefits, eligibility rules, and how citizens can apply so the AI Assistant can accurately advise citizens..."
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-500"
+                />
+              </label>
+
+              {schemeFormError && (
+                <p role="alert" className="text-xs font-bold text-red-700 sm:col-span-2 lg:col-span-3">
+                  {schemeFormError}
+                </p>
+              )}
+              {schemeFormSuccess && (
+                <p role="status" data-testid="admin-scheme-crud-status" className="text-xs font-bold text-emerald-700 sm:col-span-2 lg:col-span-3">
+                  {schemeFormSuccess}
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-3">
+                <button
+                  type="submit"
+                  data-testid="admin-scheme-submit-btn"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 cursor-pointer"
+                >
+                  {editingScheme ? <CheckCircle2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  <span>
+                    {editingScheme
+                      ? 'Save Edited Scheme to AI Knowledge Base'
+                      : 'Add Scheme to AI Knowledge Base'}
+                  </span>
+                </button>
+
+                {editingScheme && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingScheme(null);
+                      setSchemeForm(EMPTY_SCHEME_FORM);
+                      setSchemeFormError('');
+                    }}
+                    className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+
+                {adminKnowledgeState && adminKnowledgeState.deletedSchemeIds.length > 0 && onRestoreDeletedSchemes && (
+                  <button
+                    type="button"
+                    data-testid="admin-restore-deleted-btn"
+                    onClick={() => {
+                      onRestoreDeletedSchemes();
+                      setSchemeFormSuccess('Restored all deleted default schemes to the AI Knowledge Base.');
+                    }}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 cursor-pointer ml-auto"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Restore Deleted Schemes ({adminKnowledgeState.deletedSchemeIds.length})</span>
+                  </button>
+                )}
+              </div>
+            </form>
+
+            {/* AI Knowledge Base Active Schemes List with Edit & Delete */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-bold text-slate-900">
+                  AI Knowledge Base Scheme Entries ({filteredKbSchemes.length} of {allSchemes.length})
+                </h3>
+                <div className="relative w-full sm:w-72">
+                  <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    data-testid="admin-kb-search-input"
+                    value={kbSearchQuery}
+                    onChange={(e) => setKbSearchQuery(e.target.value)}
+                    placeholder="Filter AI knowledge base schemes..."
+                    className="w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 py-1.5 text-xs text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1">
+                {filteredKbSchemes.map((scheme) => {
+                  const isCustomAdded = adminKnowledgeState?.customSchemes.some((s) => s.id === scheme.id);
+                  const isAdminEdited = Boolean(adminKnowledgeState?.editedSchemes[scheme.id]);
+                  return (
+                    <article
+                      key={scheme.id}
+                      data-testid={`admin-kb-scheme-row-${scheme.id}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 transition hover:border-blue-200"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                            {scheme.level}
+                          </span>
+                          <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                            {scheme.benefitType}
+                          </span>
+                          {isCustomAdded && (
+                            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-900">
+                              Admin Added
+                            </span>
+                          )}
+                          {!isCustomAdded && isAdminEdited && (
+                            <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-900">
+                              Admin Edited
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-bold text-slate-900 truncate">{scheme.titleEn}</p>
+                        <p className="text-xs font-semibold text-emerald-700">{scheme.benefitAmountText}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          data-testid={`admin-edit-scheme-${scheme.id}`}
+                          onClick={() => populateFormForEdit(scheme)}
+                          aria-label={`Edit ${scheme.titleEn}`}
+                          className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 transition hover:bg-blue-100 cursor-pointer"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`admin-delete-scheme-${scheme.id}`}
+                          onClick={() => handleDeleteSchemeClick(scheme)}
+                          aria-label={`Delete ${scheme.titleEn}`}
+                          className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-100 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* AI Admin Live Activity Feed & AI-Added Schemes */}
       <div className="grid gap-6 lg:grid-cols-2">

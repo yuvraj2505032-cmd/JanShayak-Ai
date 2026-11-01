@@ -3,11 +3,11 @@ import { Language } from '../types/scheme';
 export const TRANSLATIONS: Record<Language, Record<string, string>> = {
   en: {
     appTitle: 'Janshayak AI',
-    appSubtitle: 'Government Scheme Eligibility Navigator (CTBF-AI-07) for Punjab & Central Schemes',
+    appSubtitle: 'Government Scheme Eligibility Navigator for Punjab & Central Schemes',
     tagline: 'Discover, check eligibility, assemble documents, and apply for 24+ government welfare schemes.',
     punjabGovt: 'Government of Punjab',
     centralGovt: 'Government of India',
-    ctBuildFest: 'CT BuildFest 2.0 • E-Governance & Citizen Services Track',
+    ctBuildFest: 'Made by Team Elite Tech • E-Governance & Citizen Services',
     helplineText: 'Punjab Citizen Helpline: 1100 (Toll-Free)',
     
     // Tabs
@@ -194,7 +194,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     newToJanshayak: 'New to Janshayak?',
 
     // Footer
-    footerDescription: 'An intelligent e-governance decision support system built for CT BuildFest 2.0 to empower citizens of Punjab in discovering, verifying, and claiming their statutory government welfare entitlements.',
+    footerDescription: 'An intelligent e-governance decision support system built by Team Elite Tech to empower citizens of Punjab in discovering, verifying, and claiming their statutory government welfare entitlements.',
     footerZeroBrokerage: 'Zero Private Brokerage • 100% Free Public Good',
     footerKeyPortals: 'Key Citizen Portals',
     footerHelplines: 'Government Helplines',
@@ -202,15 +202,17 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     footerCyberCrime: 'National Cyber Crime',
     footerWomenHelpline: 'Women in Distress',
     footerChildline: 'Childline Helpline',
-    footerKisanCenter: 'Kisan Call Center'
+    footerKisanCenter: 'Kisan Call Center',
+    footerMadeBy: 'Made by Team Elite Tech',
+    footerCitations: 'All official citations sourced directly from gazetted government notifications'
   },
   pa: {
     appTitle: 'Janshayak AI',
-    appSubtitle: 'ਸਰਕਾਰੀ ਸਕੀਮ ਯੋਗਤਾ ਨੈਵੀਗੇਟਰ (CTBF-AI-07) - ਪੰਜਾਬ ਅਤੇ ਕੇਂਦਰ ਸਰਕਾਰ ਦੀਆਂ ਸਕੀਮਾਂ',
+    appSubtitle: 'ਸਰਕਾਰੀ ਸਕੀਮ ਯੋਗਤਾ ਨੈਵੀਗੇਟਰ - ਪੰਜਾਬ ਅਤੇ ਕੇਂਦਰ ਸਰਕਾਰ ਦੀਆਂ ਸਕੀਮਾਂ',
     tagline: '24+ ਸਰਕਾਰੀ ਭਲਾਈ ਸਕੀਮਾਂ ਦੀ ਯੋਗਤਾ ਜਾਣੋ, ਦਸਤਾਵੇਜ਼ ਚੈੱਕ ਕਰੋ ਅਤੇ ਆਨਲਾਈਨ ਅਪਲਾਈ ਕਰੋ।',
     punjabGovt: 'ਪੰਜਾਬ ਸਰਕਾਰ',
     centralGovt: 'ਭਾਰਤ ਸਰਕਾਰ',
-    ctBuildFest: 'ਸੀ.ਟੀ ਬਿਲਡਫੈਸਟ 2.0 • ਈ-ਗਵਰਨੈਂਸ ਅਤੇ ਨਾਗਰਿਕ ਸੇਵਾਵਾਂ ਟਰੈਕ',
+    ctBuildFest: 'Made by Team Elite Tech • ਈ-ਗਵਰਨੈਂਸ ਅਤੇ ਨਾਗਰਿਕ ਸੇਵਾਵਾਂ',
     helplineText: 'ਪੰਜਾਬ ਨਾਗਰਿਕ ਹੈਲਪਲਾਈਨ: 1100 (ਟੋਲ-ਫ੍ਰੀ)',
 
     // Tabs
@@ -397,7 +399,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     newToJanshayak: 'ਜਨਸਹਾਇਕ \'ਤੇ ਨਵੇਂ ਹੋ?',
 
     // Footer
-    footerDescription: 'ਪੰਜਾਬ ਦੇ ਨਾਗਰਿਕਾਂ ਨੂੰ ਸਰਕਾਰੀ ਭਲਾਈ ਸਕੀਮਾਂ ਲੱਭਣ, ਯੋਗਤਾ ਜਾਂਚਣ ਅਤੇ ਬਿਨਾਂ ਕਿਸੇ ਵਿਚੋਲੇ ਦੇ ਲਾਭ ਪ੍ਰਾਪਤ ਕਰਨ ਦੇ ਸਮਰੱਥ ਬਣਾਉਣ ਲਈ ਤਿਆਰ ਕੀਤਾ ਗਿਆ ਈ-ਗਵਰਨੈਂਸ ਪੋਰਟਲ।',
+    footerDescription: 'ਪੰਜਾਬ ਦੇ ਨਾਗਰਿਕਾਂ ਨੂੰ ਸਰਕਾਰੀ ਭਲਾਈ ਸਕੀਮਾਂ ਲੱਭਣ, ਯੋਗਤਾ ਜਾਂਚਣ ਅਤੇ ਬਿਨਾਂ ਕਿਸੇ ਵਿਚੋਲੇ ਦੇ ਲਾਭ ਪ੍ਰਾਪਤ ਕਰਨ ਦੇ ਸਮਰੱਥ ਬਣਾਉਣ ਲਈ Team Elite Tech ਵੱਲੋਂ ਤਿਆਰ ਕੀਤਾ ਗਿਆ ਈ-ਗਵਰਨੈਂਸ ਪੋਰਟਲ।',
     footerZeroBrokerage: 'ਜ਼ੀਰੋ ਪ੍ਰਾਈਵੇਟ ਦਲਾਲੀ • 100% ਮੁਫ਼ਤ ਜਨਤਕ ਸੇਵਾ',
     footerKeyPortals: 'ਮੁੱਖ ਨਾਗਰਿਕ ਪੋਰਟਲ',
     footerHelplines: 'ਸਰਕਾਰੀ ਹੈਲਪਲਾਈਨ ਨੰਬਰ',
@@ -405,15 +407,17 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     footerCyberCrime: 'ਸਾਈਬਰ ਕ੍ਰਾਈਮ ਹੈਲਪਲਾਈਨ',
     footerWomenHelpline: 'ਮਹਿਲਾ ਸਹਾਇਤਾ ਨੰਬਰ',
     footerChildline: 'ਚਾਈਲਡਲਾਈਨ ਹੈਲਪਲਾਈਨ',
-    footerKisanCenter: 'ਕਿਸਾਨ ਕਾਲ ਸੈਂਟਰ'
+    footerKisanCenter: 'ਕਿਸਾਨ ਕਾਲ ਸੈਂਟਰ',
+    footerMadeBy: 'Made by Team Elite Tech',
+    footerCitations: 'ਸਾਰੇ ਅਧਿਕਾਰਤ ਵੇਰਵੇ ਸਿੱਧੇ ਸਰਕਾਰੀ ਨੋਟੀਫਿਕੇਸ਼ਨਾਂ ਤੋਂ ਲਏ ਗਏ ਹਨ'
   },
   hi: {
     appTitle: 'Janshayak AI',
-    appSubtitle: 'सरकारी योजना पात्रता नेविगेटर (CTBF-AI-07) - पंजाब व केंद्र सरकार की योजनाएं',
+    appSubtitle: 'सरकारी योजना पात्रता नेविगेटर - पंजाब व केंद्र सरकार की योजनाएं',
     tagline: '24+ सरकारी कल्याणकारी योजनाओं की पात्रता जांचें, दस्तावेज तैयार करें और आवेदन करें।',
     punjabGovt: 'पंजाब सरकार',
     centralGovt: 'भारत सरकार',
-    ctBuildFest: 'सीटी बिल्डफेस्ट 2.0 • ई-गवर्नेंस और नागरिक सेवा ट्रैक',
+    ctBuildFest: 'Made by Team Elite Tech • ई-गवर्नेंस और नागरिक सेवा',
     helplineText: 'पंजाब नागरिक हेल्पलाइन: 1100 (टोल-फ्री)',
 
     // Tabs
@@ -600,7 +604,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     newToJanshayak: 'जनसहायक पर नए हैं?',
 
     // Footer
-    footerDescription: 'पंजाब के नागरिकों को सरकारी कल्याणकारी योजनाओं को खोजने, पात्रता सत्यापित करने और बिना किसी बिचौलिए के लाभ प्राप्त करने में सशक्त बनाने हेतु निर्मित ई-गवर्नेंस प्रणाली।',
+    footerDescription: 'पंजाब के नागरिकों को सरकारी कल्याणकारी योजनाओं को खोजने, पात्रता सत्यापित करने और बिना किसी बिचौलिए के लाभ प्राप्त करने में सशक्त बनाने हेतु Team Elite Tech द्वारा निर्मित ई-गवर्नेंस प्रणाली।',
     footerZeroBrokerage: 'जीरो निजी दलाली • 100% निःशुल्क जनसेवा',
     footerKeyPortals: 'प्रमुख नागरिक पोर्टल',
     footerHelplines: 'सरकारी हेल्पलाइन नंबर',
@@ -608,6 +612,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     footerCyberCrime: 'राष्ट्रीय साइबर क्राइम',
     footerWomenHelpline: 'महिला हेल्पलाइन',
     footerChildline: 'चाइल्डलाइन हेल्पलाइन',
-    footerKisanCenter: 'किसान कॉल सेंटर'
+    footerKisanCenter: 'किसान कॉल सेंटर',
+    footerMadeBy: 'Made by Team Elite Tech',
+    footerCitations: 'सभी आधिकारिक विवरण सीधे सरकारी राजपत्र अधिसूचनाओं से लिए गए हैं'
   }
 };

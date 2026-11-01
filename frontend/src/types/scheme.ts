@@ -4,12 +4,15 @@ export type Category = 'General' | 'SC' | 'ST' | 'OBC/BC' | 'EWS';
 
 export type Gender = 'All' | 'Male' | 'Female' | 'Transgender';
 
+export type UserRole = 'Citizen' | 'Admin';
+
 export type Occupation = 
   | 'Farmer'
   | 'Agricultural Labourer'
   | 'Student'
   | 'Unemployed Youth'
   | 'Artisan/Craftsperson'
+  | 'Self-Employed'
   | 'Self-Employed/Shopkeeper'
   | 'Daily Wage Worker'
   | 'Homemaker'
@@ -85,6 +88,7 @@ export interface Scheme {
 
 export interface CitizenProfile {
   username: string;
+  role?: UserRole;
   age: number;
   gender: Gender;
   occupation: Occupation;

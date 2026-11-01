@@ -47,6 +47,7 @@ export const AiSchemeAdvisorModal: React.FC<AiSchemeAdvisorModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           schemeId: scheme.id,
+          schemeData: scheme,
           userProfile: profile,
           language: currentLang
         })
