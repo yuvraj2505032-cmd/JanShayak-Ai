@@ -109,14 +109,16 @@ export function evaluateSchemeEligibility(profile: CitizenProfile, scheme: Schem
 
   // 5. Occupation criteria
   if (scheme.eligibleOccupations && scheme.eligibleOccupations.length > 0) {
-    totalWeight += 15;
-    const isOccupationMet = scheme.eligibleOccupations.includes(profile.occupation);
+    totalWeight += 20;
+    const isOccupationMet =
+      scheme.eligibleOccupations.includes(profile.occupation) ||
+      (scheme.eligibleOccupations.includes('Student') && Boolean(profile.isEnrolledInSchoolOrCollege));
 
     if (isOccupationMet) {
-      earnedWeight += 15;
-      matchedReasons.push(`Occupation (${profile.occupation}) qualifies for targeted benefits`);
+      earnedWeight += 20;
+      matchedReasons.push(`Occupation (${profile.occupation}${profile.isEnrolledInSchoolOrCollege && profile.occupation !== 'Student' ? ' / Enrolled Student' : ''}) qualifies for targeted benefits`);
     } else {
-      failedReasons.push(`Scheme prioritizes ${scheme.eligibleOccupations.join(', ')}`);
+      failedReasons.push(`Scheme is targeted at ${scheme.eligibleOccupations.join(', ')}`);
     }
 
     criteria.push({
@@ -125,9 +127,9 @@ export function evaluateSchemeEligibility(profile: CitizenProfile, scheme: Schem
       labelPa: `ਕਿੱਤਾ ਸ਼ਰਤ: ${scheme.eligibleOccupations.join(', ')}`,
       labelHi: `लक्षित व्यवसाय: ${scheme.eligibleOccupations.join(', ')}`,
       isMet: isOccupationMet,
-      userValueDescription: `Your occupation: ${profile.occupation}`,
+      userValueDescription: `Your occupation: ${profile.occupation}${profile.isEnrolledInSchoolOrCollege ? ' (Enrolled Student)' : ''}`,
       requiredDescription: scheme.eligibleOccupations.join(', '),
-      isMandatory: false // might be non-mandatory if generalized
+      isMandatory: true
     });
   }
 

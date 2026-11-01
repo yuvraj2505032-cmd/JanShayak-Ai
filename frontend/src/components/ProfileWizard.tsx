@@ -125,7 +125,7 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               {t.wizardTitle}
             </h2>
             <span className="bg-teal-100 text-teal-800 text-[11px] font-bold px-2 py-0.5 rounded-full">
-              Live AI Matching
+              {currentLang === 'pa' ? 'ਲਾਈਵ AI ਮਿਲਾਣ' : currentLang === 'hi' ? 'लाइव AI मिलान' : 'Live AI Matching'}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
@@ -137,7 +137,13 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200/80 px-3.5 py-1.5 rounded-xl">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           <span className="text-xs font-semibold text-slate-700">
-            Matches: <strong className="text-emerald-700">{eligibleCount} Confirmed</strong>, <span className="text-blue-700">{potentialCount} Potential</span>
+            {currentLang === 'pa' ? 'ਮਿਲਾਣ:' : currentLang === 'hi' ? 'मिलान:' : 'Matches:'}{' '}
+            <strong className="text-emerald-700">
+              {eligibleCount} {t.eligibleShort}
+            </strong>,{' '}
+            <span className="text-blue-700">
+              {potentialCount} {t.potentialShort}
+            </span>
           </span>
         </div>
       </div>
@@ -146,7 +152,7 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-5">
         <div>
           <label htmlFor="citizen-username" className="mb-1.5 block text-xs font-semibold text-slate-700">
-            Username
+            {currentLang === 'pa' ? 'ਤੁਹਾਡਾ ਨਾਮ / ਯੂਜ਼ਰਨੇਮ' : currentLang === 'hi' ? 'आपका नाम / यूज़रनेम' : 'Username'}
           </label>
           <input
             id="citizen-username"
@@ -155,7 +161,13 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
             maxLength={80}
             value={profile.username}
             onChange={(event) => handleChange('username', event.target.value)}
-            placeholder="Enter your name or username"
+            placeholder={
+              currentLang === 'pa'
+                ? 'ਆਪਣਾ ਨਾਮ ਲਿਖੋ'
+                : currentLang === 'hi'
+                ? 'अपना नाम दर्ज करें'
+                : 'Enter your name or username'
+            }
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
@@ -164,7 +176,9 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
             <span>{t.ageLabel}</span>
-            <span className="text-blue-600 font-bold">{profile.age} Years</span>
+            <span className="text-blue-600 font-bold">
+              {profile.age} {currentLang === 'pa' ? 'ਸਾਲ' : currentLang === 'hi' ? 'वर्ष' : 'Years'}
+            </span>
           </label>
           <div className="flex items-center gap-3">
             <input
@@ -192,20 +206,28 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
             {t.genderLabel}
           </label>
           <div className="grid grid-cols-3 gap-1.5">
-            {genders.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => handleChange('gender', g)}
-                className={`py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-                  profile.gender === g
-                    ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
-                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
+            {genders.map((g) => {
+              const genderLabel =
+                g === 'Male'
+                  ? (currentLang === 'pa' ? 'ਪੁਰਸ਼' : currentLang === 'hi' ? 'पुरुष' : 'Male')
+                  : g === 'Female'
+                  ? (currentLang === 'pa' ? 'ਮਹਿਲਾ' : currentLang === 'hi' ? 'महिला' : 'Female')
+                  : (currentLang === 'pa' ? 'ਟ੍ਰਾਂਸਜੈਂਡਰ' : currentLang === 'hi' ? 'ट्रांसजेंडर' : 'Transgender');
+              return (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => handleChange('gender', g)}
+                  className={`py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                    profile.gender === g
+                      ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {genderLabel}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -235,9 +257,19 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
             value={profile.occupation}
             onChange={(e) => {
               const occ = e.target.value as Occupation;
-              handleChange('occupation', occ);
               if (occ === 'Student') {
-                handleChange('isEnrolledInSchoolOrCollege', true);
+                onChange({
+                  ...profile,
+                  occupation: 'Student',
+                  isEnrolledInSchoolOrCollege: true,
+                  age: profile.age > 30 ? 20 : profile.age,
+                });
+              } else {
+                onChange({
+                  ...profile,
+                  occupation: occ,
+                  isEnrolledInSchoolOrCollege: false,
+                });
               }
             }}
             className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -306,7 +338,9 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
             <span>{t.landholdingLabel}</span>
-            <span className="text-slate-500 font-medium">{profile.landholdingAcres} Acres</span>
+            <span className="text-slate-500 font-medium">
+              {profile.landholdingAcres} {currentLang === 'pa' ? 'ਏਕੜ' : currentLang === 'hi' ? 'एकड़' : 'Acres'}
+            </span>
           </label>
           <input
             type="number"
@@ -336,7 +370,9 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               {profile.isPunjabDomicile && <Check className="w-3.5 h-3.5 text-blue-700" />}
             </div>
             <span className="text-[10px] font-bold mt-1 text-blue-700">
-              {profile.isPunjabDomicile ? 'Yes, Punjab Resident' : 'No'}
+              {profile.isPunjabDomicile
+                ? (currentLang === 'pa' ? 'ਹਾਂ, ਪੰਜਾਬ ਵਸਨੀਕ' : currentLang === 'hi' ? 'हाँ, पंजाब निवासी' : 'Yes, Punjab Resident')
+                : (currentLang === 'pa' ? 'ਨਹੀਂ' : currentLang === 'hi' ? 'नहीं' : 'No')}
             </span>
           </button>
 
@@ -355,7 +391,9 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               {profile.hasDisability && <Check className="w-3.5 h-3.5 text-purple-700" />}
             </div>
             <span className="text-[10px] font-bold mt-1 text-purple-700">
-              {profile.hasDisability ? 'Yes (≥ 40% / UDID)' : 'No'}
+              {profile.hasDisability
+                ? (currentLang === 'pa' ? 'ਹਾਂ (≥ 40% / UDID)' : currentLang === 'hi' ? 'हाँ (≥ 40% / UDID)' : 'Yes (≥ 40% / UDID)')
+                : (currentLang === 'pa' ? 'ਨਹੀਂ' : currentLang === 'hi' ? 'नहीं' : 'No')}
             </span>
           </button>
 
@@ -374,26 +412,38 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               {profile.isWidowOrDestitute && <Check className="w-3.5 h-3.5 text-rose-700" />}
             </div>
             <span className="text-[10px] font-bold mt-1 text-rose-700">
-              {profile.isWidowOrDestitute ? 'Yes' : 'No'}
+              {profile.isWidowOrDestitute
+                ? (currentLang === 'pa' ? 'ਹਾਂ' : currentLang === 'hi' ? 'हाँ' : 'Yes')
+                : (currentLang === 'pa' ? 'ਨਹੀਂ' : currentLang === 'hi' ? 'नहीं' : 'No')}
             </span>
           </button>
 
           {/* Student Toggle */}
           <button
             type="button"
-            onClick={() => handleChange('isEnrolledInSchoolOrCollege', !profile.isEnrolledInSchoolOrCollege)}
+            onClick={() => {
+              const nextEnrolled = !profile.isEnrolledInSchoolOrCollege;
+              onChange({
+                ...profile,
+                isEnrolledInSchoolOrCollege: nextEnrolled,
+                occupation: nextEnrolled ? 'Student' : (profile.occupation === 'Student' ? 'Unemployed Youth' : profile.occupation),
+                age: nextEnrolled && profile.age > 30 ? 20 : profile.age,
+              });
+            }}
             className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
-              profile.isEnrolledInSchoolOrCollege
+              profile.isEnrolledInSchoolOrCollege || profile.occupation === 'Student'
                 ? 'bg-amber-50 border-amber-300 text-amber-900 shadow-xs'
                 : 'bg-slate-50 border-slate-200 text-slate-600'
             }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold">{t.studentLabel}</span>
-              {profile.isEnrolledInSchoolOrCollege && <Check className="w-3.5 h-3.5 text-amber-700" />}
+              {(profile.isEnrolledInSchoolOrCollege || profile.occupation === 'Student') && <Check className="w-3.5 h-3.5 text-amber-700" />}
             </div>
             <span className="text-[10px] font-bold mt-1 text-amber-700">
-              {profile.isEnrolledInSchoolOrCollege ? 'Yes, Enrolled' : 'No'}
+              {profile.isEnrolledInSchoolOrCollege || profile.occupation === 'Student'
+                ? (currentLang === 'pa' ? 'ਹਾਂ, ਵਿਦਿਆਰਥੀ' : currentLang === 'hi' ? 'हाँ, अध्ययनरत' : 'Yes, Enrolled')
+                : (currentLang === 'pa' ? 'ਨਹੀਂ' : currentLang === 'hi' ? 'नहीं' : 'No')}
             </span>
           </button>
         </div>
@@ -402,18 +452,28 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
       <section className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Account password</h3>
+            <h3 className="text-sm font-semibold text-slate-900">
+              {currentLang === 'pa' ? 'ਖਾਤਾ ਪਾਸਵਰਡ ਸੈਟਿੰਗ' : currentLang === 'hi' ? 'खाता पासवर्ड सेटिंग' : 'Account password'}
+            </h3>
             <p className="mt-1 text-xs leading-5 text-slate-600">
               {accountEmail
-                ? `Set a new password for ${accountEmail}. Supabase Auth manages your password securely.`
-                : 'Sign in to your Supabase account to set or change its password.'}
+                ? (currentLang === 'pa'
+                    ? `${accountEmail} ਲਈ ਨਵਾਂ ਪਾਸਵਰਡ ਸੈੱਟ ਕਰੋ।`
+                    : currentLang === 'hi'
+                    ? `${accountEmail} के लिए नया पासवर्ड सेट करें।`
+                    : `Set a new password for ${accountEmail}.`)
+                : (currentLang === 'pa'
+                    ? 'ਪਾਸਵਰਡ ਬਦਲਣ ਲਈ ਆਪਣੇ ਖਾਤੇ ਵਿੱਚ ਸਾਈਨ ਇਨ ਕਰੋ।'
+                    : currentLang === 'hi'
+                    ? 'पासवर्ड बदलने के लिए अपने खाते में साइन इन करें।'
+                    : 'Sign in to your account to set or change its password.')}
             </p>
           </div>
         </div>
         {accountEmail ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-700">
-              New password
+              {t.newPasswordLabel}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -424,7 +484,7 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               />
             </label>
             <label className="text-xs font-semibold text-slate-700">
-              Confirm new password
+              {t.confirmNewPasswordLabel}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -440,7 +500,7 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               disabled={isSettingPassword || !newPassword || !confirmPassword}
               className="min-h-10 justify-self-start rounded-full bg-slate-900 px-4 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
             >
-              {isSettingPassword ? 'Updating password…' : 'Set password'}
+              {isSettingPassword ? t.pleaseWait : (currentLang === 'pa' ? 'ਪਾਸਵਰਡ ਸੈੱਟ ਕਰੋ' : currentLang === 'hi' ? 'पासवर्ड सेट करें' : 'Set password')}
             </button>
             {(passwordMessage || passwordError) && (
               <p role={passwordError ? 'alert' : 'status'} className={`text-xs sm:col-span-2 ${passwordError ? 'text-red-700' : 'text-emerald-700'}`}>
@@ -450,7 +510,11 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
           </div>
         ) : (
           <p className="mt-3 text-xs font-medium text-blue-700">
-            Use the account option in the menu to sign in or create an account with an email and password.
+            {currentLang === 'pa'
+              ? 'ਉੱਪਰ ਦਿੱਤੇ ਸਾਈਨ-ਇਨ ਬਟਨ ਰਾਹੀਂ ਈਮੇਲ ਜਾਂ Google ਨਾਲ ਖਾਤਾ ਬਣਾਓ ਜਾਂ ਸਾਈਨ ਇਨ ਕਰੋ।'
+              : currentLang === 'hi'
+              ? 'ऊपर दिए गए साइन-इन बटन से ईमेल या Google के माध्यम से साइन इन करें।'
+              : 'Use the Sign in button in the top bar to sign in with Email or Google.'}
           </p>
         )}
       </section>
@@ -494,7 +558,11 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
             className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60 sm:text-sm"
           >
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <span>{isSavingProfile ? 'Saving…' : 'Save Profile'}</span>
+            <span>
+              {isSavingProfile
+                ? t.pleaseWait
+                : (currentLang === 'pa' ? 'ਪ੍ਰੋਫ਼ਾਈਲ ਸੇਵ ਕਰੋ' : currentLang === 'hi' ? 'प्रोफ़ाइल सहेजें' : 'Save Profile')}
+            </span>
           </button>
           {onOpenAiRoadmap && (
             <button
@@ -503,7 +571,9 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
               className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-amber-600 fill-amber-300" />
-              <span>AI Welfare Roadmap</span>
+              <span>
+                {currentLang === 'pa' ? 'AI ਭਲਾਈ ਰੋਡਮੈਪ' : currentLang === 'hi' ? 'AI कल्याण रोडमैप' : 'AI Welfare Roadmap'}
+              </span>
             </button>
           )}
 

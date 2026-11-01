@@ -272,8 +272,20 @@ export const SmartEligibilitySearchBar: React.FC<SmartEligibilitySearchBarProps>
                   value={profile.occupation}
                   onChange={(e) => {
                     const occ = e.target.value as Occupation;
-                    updateField('occupation', occ);
-                    if (occ === 'Student') updateField('isEnrolledInSchoolOrCollege', true);
+                    if (occ === 'Student') {
+                      onProfileChange({
+                        ...profile,
+                        occupation: 'Student',
+                        isEnrolledInSchoolOrCollege: true,
+                        age: profile.age > 30 ? 20 : profile.age,
+                      });
+                    } else {
+                      onProfileChange({
+                        ...profile,
+                        occupation: occ,
+                        isEnrolledInSchoolOrCollege: false,
+                      });
+                    }
                   }}
                   className="w-full p-1.5 border border-slate-300 rounded-lg text-xs font-medium"
                 >
@@ -369,8 +381,16 @@ export const SmartEligibilitySearchBar: React.FC<SmartEligibilitySearchBarProps>
                 <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
                   <input
                     type="checkbox"
-                    checked={profile.isEnrolledInSchoolOrCollege}
-                    onChange={(e) => updateField('isEnrolledInSchoolOrCollege', e.target.checked)}
+                    checked={profile.isEnrolledInSchoolOrCollege || profile.occupation === 'Student'}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      onProfileChange({
+                        ...profile,
+                        isEnrolledInSchoolOrCollege: checked,
+                        occupation: checked ? 'Student' : (profile.occupation === 'Student' ? 'Unemployed Youth' : profile.occupation),
+                        age: checked && profile.age > 30 ? 20 : profile.age,
+                      });
+                    }}
                     className="rounded text-amber-600 w-3.5 h-3.5"
                   />
                   <span>Student</span>

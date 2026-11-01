@@ -55,12 +55,13 @@ export interface Scheme {
   maxLandholdingAcres?: number; // for farmer schemes
   requiresDisability?: boolean;
   requiresWidow?: boolean;
+  requiresStudentStatus?: boolean;
   applicationDeadline: string;
   deadlineType: 'Ongoing' | 'Seasonal' | 'Fixed Date';
   officialPortalUrl: string;
   officialPortalName: string;
-  youtubeVideoId: string; // YouTube video ID or search query
-  youtubeVideoTitle: string;
+  youtubeVideoId?: string; // YouTube video ID or search query
+  youtubeVideoTitle?: string;
   requiredDocuments: {
     nameEn: string;
     namePa: string;

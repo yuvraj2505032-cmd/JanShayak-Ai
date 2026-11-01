@@ -130,3 +130,28 @@ test('schemeEngine: Missing documents aggregator computes readiness percentage',
   assert.ok(docSummary.missingDocs.length > 0);
   assert.ok(docSummary.readinessPercentage > 0 && docSummary.readinessPercentage <= 100);
 });
+
+test('schemeEngine: Selecting Student occupation or enrolled student status matches student scholarships', () => {
+  const studentProfile: CitizenProfile = {
+    username: 'Simran',
+    age: 20,
+    gender: 'Female',
+    occupation: 'Student',
+    annualIncome: 120000,
+    category: 'General',
+    district: 'Ludhiana',
+    isPunjabDomicile: true,
+    landholdingAcres: 0,
+    hasDisability: false,
+    isWidowOrDestitute: false,
+    isEnrolledInSchoolOrCollege: true
+  };
+
+  const evaluations = evaluateAllSchemes(studentProfile);
+  const eligibleStudentIds = evaluations.filter(e => e.isEligible).map(e => e.schemeId);
+  assert.ok(eligibleStudentIds.includes('dr-hargobind-khurana-scholarship'));
+  assert.ok(eligibleStudentIds.includes('pm-usp-college-scholarship'));
+  assert.ok(eligibleStudentIds.includes('pm-vidyalaxmi-education-loan'));
+  assert.ok(eligibleStudentIds.includes('aicte-pragati-saksham-scholarship'));
+});
+

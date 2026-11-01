@@ -38,7 +38,8 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
     age: simulatedAge,
     landholdingAcres: simulatedLand,
     category: simulatedCategory,
-    occupation: simulatedOccupation
+    occupation: simulatedOccupation,
+    isEnrolledInSchoolOrCollege: simulatedOccupation === 'Student',
   });
 
   const resetSimulation = () => {
@@ -211,6 +212,32 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
                   }`}
                 >
                   {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Occupation Toggle */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 md:col-span-2">
+            <label className="text-xs font-bold text-slate-700 block">Simulate Occupation (Try Student, Farmer, Senior Citizen)</label>
+            <div className="flex flex-wrap gap-1.5">
+              {occupations.map((occ) => (
+                <button
+                  key={occ}
+                  type="button"
+                  onClick={() => {
+                    setSimulatedOccupation(occ);
+                    if (occ === 'Student' && simulatedAge > 30) {
+                      setSimulatedAge(20);
+                    }
+                  }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                    simulatedOccupation === occ
+                      ? 'bg-teal-700 text-white border-teal-700 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {occ}
                 </button>
               ))}
             </div>

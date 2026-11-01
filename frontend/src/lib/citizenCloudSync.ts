@@ -124,22 +124,80 @@ export function parseTrackedItems(value: unknown): ApplicationTrackerItem[] {
   });
 }
 
+export interface ExtraCitizenSyncData {
+  ownedDocs?: Set<string>;
+  preferredLanguage?: 'en' | 'pa' | 'hi';
+  googleLinkedEmail?: string | null;
+}
+
 export async function loadCitizenCloudData(userId: string) {
   if (!supabase) throw new Error('Supabase is not configured.');
 
   const { data, error } = await supabase
     .from('citizen_app_data')
-    .select('saved_scheme_ids, tracked_items, profile')
+    .select('*')
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error) throw new Error(`Could not load cloud data: ${error.message}`);
-  if (!data) return { savedSchemeIds: new Set<string>(), trackedItems: [], profile: null, hasCloudRecord: false };
+  if (error) {
+    // Fallback to Supabase user_metadata if table is not created yet
+    const { data: userData } = await supabase.auth.getUser();
+    const meta = userData?.user?.user_metadata?.janshayak_cloud_backup as Record<string, unknown> | undefined;
+    if (meta) {
+      return {
+        savedSchemeIds: Array.isArray(meta.saved_scheme_ids) ? parseSavedSchemeIds(meta.saved_scheme_ids) : new Set<string>(),
+        trackedItems: Array.isArray(meta.tracked_items) ? parseTrackedItems(meta.tracked_items) : [],
+        profile: meta.profile ? parseCitizenProfile(meta.profile) : null,
+        ownedDocs: Array.isArray(meta.owned_docs) ? new Set<string>(meta.owned_docs.filter((d): d is string => typeof d === 'string')) : undefined,
+        preferredLanguage: (meta.preferred_language === 'pa' || meta.preferred_language === 'hi' || meta.preferred_language === 'en') ? meta.preferred_language : undefined,
+        googleLinkedEmail: typeof meta.google_linked_email === 'string' ? meta.google_linked_email : null,
+        hasCloudRecord: true
+      };
+    }
+    throw new Error(`Could not load cloud data: ${error.message}`);
+  }
+
+  if (!data) {
+    return {
+      savedSchemeIds: new Set<string>(),
+      trackedItems: [],
+      profile: null,
+      ownedDocs: undefined,
+      preferredLanguage: undefined,
+      googleLinkedEmail: null,
+      hasCloudRecord: false
+    };
+  }
+
+  const rawRow = data as Record<string, unknown>;
+  const rawProfile = (data.profile && typeof data.profile === 'object' && !Array.isArray(data.profile))
+    ? (data.profile as Record<string, unknown>)
+    : null;
+
+  const ownedDocsSource = Array.isArray(rawRow.owned_docs)
+    ? rawRow.owned_docs
+    : (rawProfile && Array.isArray(rawProfile._ownedDocs) ? rawProfile._ownedDocs : undefined);
+  const ownedDocs = Array.isArray(ownedDocsSource)
+    ? new Set<string>(ownedDocsSource.filter((item): item is string => typeof item === 'string'))
+    : undefined;
+
+  const langSource = typeof rawRow.preferred_language === 'string'
+    ? rawRow.preferred_language
+    : (rawProfile && typeof rawProfile._preferredLanguage === 'string' ? rawProfile._preferredLanguage : undefined);
+  const preferredLanguage: 'en' | 'pa' | 'hi' | undefined =
+    langSource === 'pa' || langSource === 'hi' || langSource === 'en' ? langSource : undefined;
+
+  const googleEmailSource = typeof rawRow.google_linked_email === 'string'
+    ? rawRow.google_linked_email
+    : (rawProfile && typeof rawProfile._googleLinkedEmail === 'string' ? rawProfile._googleLinkedEmail : null);
 
   return {
     savedSchemeIds: parseSavedSchemeIds(data.saved_scheme_ids),
     trackedItems: parseTrackedItems(data.tracked_items),
     profile: data.profile === null ? null : parseCitizenProfile(data.profile),
+    ownedDocs,
+    preferredLanguage,
+    googleLinkedEmail: googleEmailSource,
     hasCloudRecord: true
   };
 }
@@ -148,7 +206,8 @@ export async function saveCitizenCloudData(
   userId: string,
   savedSchemeIds: Set<string>,
   trackedItems: ApplicationTrackerItem[],
-  profile: CitizenProfile
+  profile: CitizenProfile,
+  extra?: ExtraCitizenSyncData
 ) {
   if (!supabase) throw new Error('Supabase is not configured.');
 
@@ -165,26 +224,61 @@ export async function saveCitizenCloudData(
     return row;
   });
 
-  const { error } = await supabase.from('citizen_app_data').upsert({
+  const ownedDocsArray = extra?.ownedDocs ? Array.from(extra.ownedDocs) : undefined;
+  const profilePayload: { [key: string]: Json | undefined } = {
+    username: profile.username,
+    age: profile.age,
+    gender: profile.gender,
+    occupation: profile.occupation,
+    annualIncome: profile.annualIncome,
+    category: profile.category,
+    district: profile.district,
+    isPunjabDomicile: profile.isPunjabDomicile,
+    landholdingAcres: profile.landholdingAcres,
+    hasDisability: profile.hasDisability,
+    isWidowOrDestitute: profile.isWidowOrDestitute,
+    isEnrolledInSchoolOrCollege: profile.isEnrolledInSchoolOrCollege,
+    ...(ownedDocsArray ? { _ownedDocs: ownedDocsArray } : {}),
+    ...(extra?.preferredLanguage ? { _preferredLanguage: extra.preferredLanguage } : {}),
+    ...(extra?.googleLinkedEmail !== undefined ? { _googleLinkedEmail: extra.googleLinkedEmail } : {})
+  };
+
+  const basePayload = {
     user_id: userId,
     saved_scheme_ids: Array.from(savedSchemeIds),
     tracked_items: cloudTrackedItems,
-    profile: {
-      username: profile.username,
-      age: profile.age,
-      gender: profile.gender,
-      occupation: profile.occupation,
-      annualIncome: profile.annualIncome,
-      category: profile.category,
-      district: profile.district,
-      isPunjabDomicile: profile.isPunjabDomicile,
-      landholdingAcres: profile.landholdingAcres,
-      hasDisability: profile.hasDisability,
-      isWidowOrDestitute: profile.isWidowOrDestitute,
-      isEnrolledInSchoolOrCollege: profile.isEnrolledInSchoolOrCollege
-    },
+    profile: profilePayload,
     updated_at: new Date().toISOString()
+  };
+
+  // Attempt full upsert with extended columns first; fall back to base columns if schema only has core columns
+  const { error: fullError } = await supabase.from('citizen_app_data').upsert({
+    ...basePayload,
+    ...(ownedDocsArray ? { owned_docs: ownedDocsArray } : {}),
+    ...(extra?.preferredLanguage ? { preferred_language: extra.preferredLanguage } : {}),
+    ...(extra?.googleLinkedEmail !== undefined ? { google_linked_email: extra.googleLinkedEmail } : {})
   }, { onConflict: 'user_id' });
 
-  if (error) throw new Error(`Could not sync cloud data: ${error.message}`);
+  if (fullError) {
+    const { error: fallbackError } = await supabase
+      .from('citizen_app_data')
+      .upsert(basePayload, { onConflict: 'user_id' });
+
+    if (fallbackError) {
+      // Final resilient fallback: store inside Supabase user_metadata so user never loses cloud data
+      const { error: metaError } = await supabase.auth.updateUser({
+        data: {
+          janshayak_cloud_backup: {
+            ...basePayload,
+            owned_docs: ownedDocsArray ?? [],
+            preferred_language: extra?.preferredLanguage ?? 'en',
+            google_linked_email: extra?.googleLinkedEmail ?? null
+          }
+        }
+      });
+      if (metaError) {
+        throw new Error(`Could not sync cloud data: ${fallbackError.message}`);
+      }
+    }
+  }
 }

@@ -12,6 +12,9 @@ export interface Database {
           saved_scheme_ids: string[];
           tracked_items: Json;
           profile: Json | null;
+          owned_docs?: string[];
+          preferred_language?: string;
+          google_linked_email?: string | null;
           updated_at: string;
         };
         Insert: {
@@ -19,6 +22,9 @@ export interface Database {
           saved_scheme_ids?: string[];
           tracked_items?: Json;
           profile?: Json | null;
+          owned_docs?: string[];
+          preferred_language?: string;
+          google_linked_email?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -26,6 +32,9 @@ export interface Database {
           saved_scheme_ids?: string[];
           tracked_items?: Json;
           profile?: Json | null;
+          owned_docs?: string[];
+          preferred_language?: string;
+          google_linked_email?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -80,7 +89,16 @@ const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY?.trim();
 export let supabase: SupabaseClient<Database> | null = null;
 export let supabaseConfigurationError: string | null = null;
 
-if (supabaseUrl && supabaseAnonKey) {
+const isPlaceholderSupabase =
+  !supabaseUrl ||
+  !supabaseAnonKey ||
+  supabaseUrl.toLowerCase().includes('your_project') ||
+  supabaseUrl.toLowerCase().includes('example.supabase.co') ||
+  supabaseAnonKey.toLowerCase() === 'your_anon_key' ||
+  supabaseAnonKey.toLowerCase().includes('your_supabase') ||
+  supabaseAnonKey.toLowerCase().includes('your-supabase');
+
+if (!isPlaceholderSupabase && supabaseUrl && supabaseAnonKey) {
   try {
     const url = new URL(supabaseUrl);
     if (url.protocol !== 'https:' && url.hostname !== 'localhost') {

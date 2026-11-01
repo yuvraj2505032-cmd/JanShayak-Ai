@@ -37,12 +37,25 @@ create table if not exists public.citizen_app_data (
     check (jsonb_typeof(tracked_items) = 'array'),
   profile jsonb
     check (profile is null or jsonb_typeof(profile) = 'object'),
+  owned_docs text[] not null default '{}',
+  preferred_language text not null default 'en'
+    check (preferred_language in ('en', 'pa', 'hi')),
+  google_linked_email text,
   updated_at timestamptz not null default now()
 );
 
 alter table public.citizen_app_data
   add column if not exists profile jsonb
     check (profile is null or jsonb_typeof(profile) = 'object');
+
+alter table public.citizen_app_data
+  add column if not exists owned_docs text[] not null default '{}';
+
+alter table public.citizen_app_data
+  add column if not exists preferred_language text not null default 'en';
+
+alter table public.citizen_app_data
+  add column if not exists google_linked_email text;
 
 alter table public.citizen_app_data enable row level security;
 

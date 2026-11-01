@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Home, UserRound, X } from 'lucide-react';
 import { Language } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { SupabaseAccount } from './SupabaseAccount';
@@ -51,6 +51,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const selectTab = (tab: string) => {
     onTabChange(tab);
     setIsMenuOpen(false);
+    if (tab === 'dashboard') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   return (
@@ -86,53 +89,47 @@ export const Navbar: React.FC<NavbarProps> = ({
               Janshayak <span className="text-teal-700">AI</span>
             </span>
           </button>
+
+          {activeTab !== 'dashboard' && (
+            <button
+              type="button"
+              data-testid="navbar-back-home-btn"
+              onClick={() => selectTab('dashboard')}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/90 px-2.5 py-1.5 text-xs font-bold text-blue-800 shadow-2xs transition hover:border-blue-300 hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100 sm:px-3"
+              aria-label={t.backToHome}
+            >
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <Home className="hidden h-3.5 w-3.5 shrink-0 sm:inline" aria-hidden="true" />
+              <span>{t.homeShort}</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-1.5 sm:gap-2">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsLanguageOpen((open) => !open)}
-              aria-label="Choose language"
-              aria-expanded={isLanguageOpen}
-              className="inline-flex min-h-10 items-center gap-1 rounded-xl px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:gap-1.5 sm:px-3 sm:text-sm"
-            >
-              <span className="hidden md:inline">EN / ਪੰਜਾਬੀ / हिंदी</span>
-              <span className="md:hidden">
-                {currentLang === 'pa' ? 'ਪੰਜਾਬੀ' : currentLang === 'hi' ? 'हिंदी' : 'EN'}
-              </span>
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isLanguageOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
-            </button>
-            {isLanguageOpen && (
-              <>
+          <div
+            role="group"
+            aria-label="Choose language"
+            className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100/90 p-0.5"
+          >
+            {languages.map((language) => {
+              const isSelected = currentLang === language.id;
+              return (
                 <button
+                  key={language.id}
                   type="button"
-                  aria-label="Close language menu"
-                  className="fixed inset-0 z-40 cursor-default"
-                  onClick={() => setIsLanguageOpen(false)}
-                />
-                <div className="absolute right-0 top-full z-50 mt-2 w-40 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10">
-                  {languages.map((language) => (
-                    <button
-                      key={language.id}
-                      type="button"
-                      onClick={() => {
-                        onLanguageChange(language.id);
-                        setIsLanguageOpen(false);
-                      }}
-                      aria-current={currentLang === language.id ? 'true' : undefined}
-                      className={`w-full rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
-                        currentLang === language.id
-                          ? 'bg-blue-50 text-blue-800'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {language.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+                  data-testid={`lang-${language.id}`}
+                  onClick={() => onLanguageChange(language.id)}
+                  aria-current={isSelected ? 'true' : undefined}
+                  className={`rounded-lg px-2 py-1.5 text-xs font-bold transition sm:px-2.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-700 text-white shadow-2xs'
+                      : 'text-slate-700 hover:bg-white/70 hover:text-slate-950'
+                  }`}
+                >
+                  {language.label}
+                </button>
+              );
+            })}
           </div>
 
           <SupabaseAccount
@@ -192,7 +189,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </nav>
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
                 <span className="truncate text-xs font-medium text-slate-600">
-                  {activeEmail ? activeEmail : 'Not signed in'}
+                  {activeEmail ? activeEmail : t.notSignedIn}
                 </span>
                 <button
                   type="button"
@@ -202,7 +199,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }}
                   className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-100"
                 >
-                  {activeEmail ? 'Manage account' : t.signIn}
+                  {activeEmail ? t.manageAccount : t.signIn}
                 </button>
               </div>
             </div>

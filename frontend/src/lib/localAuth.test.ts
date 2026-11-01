@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 import {
   createLocalAccount,
+  linkLocalAccountWithGoogle,
+  resetLocalAccountPassword,
   restoreLocalAccount,
   signInLocalAccount,
+  signInOrCreateGoogleLocalAccount,
   signOutLocalAccount,
+  unlinkLocalAccountGoogle,
   updateLocalAccountPassword
 } from './localAuth';
 
@@ -76,5 +80,33 @@ describe('local device accounts', () => {
     await assert.rejects(signInLocalAccount('citizen@example.com', 'old-password-123'), /Incorrect password/);
     assert.deepEqual(await signInLocalAccount('citizen@example.com', 'new-password-456'), account);
   });
+
+  it('resets a forgotten password by email for an existing local account', async () => {
+    resetBrowserStorage();
+    const account = await createLocalAccount('student@example.com', 'initial-secret-123');
+    signOutLocalAccount();
+    const resetAccount = await resetLocalAccountPassword('Student@Example.com', 'recovered-secret-789');
+    assert.deepEqual(resetAccount, account);
+    assert.deepEqual(restoreLocalAccount(), account);
+    signOutLocalAccount();
+    assert.deepEqual(await signInLocalAccount('student@example.com', 'recovered-secret-789'), account);
+  });
+
+  it('supports direct Google sign-in and linking/unlinking an existing account with Google', async () => {
+    resetBrowserStorage();
+    const googleAccount = await signInOrCreateGoogleLocalAccount('Yuvraj.Student@Gmail.com');
+    assert.equal(googleAccount.email, 'yuvraj.student@gmail.com');
+    assert.equal(googleAccount.googleLinkedEmail, 'yuvraj.student@gmail.com');
+    assert.deepEqual(restoreLocalAccount(), googleAccount);
+
+    const unlinked = unlinkLocalAccountGoogle(googleAccount.id);
+    assert.equal(unlinked.googleLinkedEmail, undefined);
+
+    const relinked = linkLocalAccountWithGoogle(googleAccount.id, 'yuvraj2505032@gmail.com');
+    assert.equal(relinked.googleLinkedEmail, 'yuvraj2505032@gmail.com');
+    assert.equal(restoreLocalAccount()?.googleLinkedEmail, 'yuvraj2505032@gmail.com');
+  });
 });
+
+
 

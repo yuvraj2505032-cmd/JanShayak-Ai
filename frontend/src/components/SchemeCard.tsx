@@ -23,7 +23,8 @@ import {
   CheckSquare,
   FileCheck2,
   Building2,
-  Printer
+  Printer,
+  Calculator
 } from 'lucide-react';
 import { printSchemeDocument } from '../utils/printHelper';
 
@@ -31,7 +32,7 @@ interface SchemeCardProps {
   scheme: Scheme;
   evaluation?: EligibilityEvaluation;
   currentLang: Language;
-  onOpenDetails: (scheme: Scheme, initialTab?: 'overview' | 'eligibility' | 'documents' | 'steps' | 'tutorial') => void;
+  onOpenDetails: (scheme: Scheme, initialTab?: 'overview' | 'estimator' | 'eligibility' | 'documents' | 'steps' | 'tutorial') => void;
   onOpenTutorial: (scheme: Scheme) => void;
   onOpenScanner?: (scheme: Scheme) => void;
   onOpenAllDocuments?: (scheme: Scheme) => void;
@@ -121,7 +122,11 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
               : 'bg-blue-50 text-blue-800 border border-blue-200'
           }`}>
             <ShieldCheck className="w-3 h-3" />
-            <span>{scheme.level}</span>
+            <span>
+              {isPunjab
+                ? (currentLang === 'pa' ? 'ਪੰਜਾਬ ਸਰਕਾਰ' : currentLang === 'hi' ? 'पंजाब सरकार' : scheme.level)
+                : (currentLang === 'pa' ? 'ਕੇਂਦਰ ਸਰਕਾਰ' : currentLang === 'hi' ? 'केंद्र सरकार' : scheme.level)}
+            </span>
           </span>
 
           <div className="flex items-center gap-1.5">
@@ -138,7 +143,13 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 ) : (
                   <AlertCircle className="w-3 h-3 text-amber-600" />
                 )}
-                <span>{matchPercentage}% Match</span>
+                <span>
+                  {currentLang === 'pa'
+                    ? `${matchPercentage}% ਯੋਗਤਾ`
+                    : currentLang === 'hi'
+                    ? `${matchPercentage}% पात्रता`
+                    : `${matchPercentage}% Match`}
+                </span>
               </span>
             )}
 
@@ -186,7 +197,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
           ))}
           {scheme.deadlineType === 'Seasonal' && (
             <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
-              Seasonal Cycle
+              {currentLang === 'pa' ? 'ਮੌਸਮੀ ਚੱਕਰ' : currentLang === 'hi' ? 'मौसमी चक्र' : 'Seasonal Cycle'}
             </span>
           )}
         </div>
@@ -211,7 +222,8 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
           <div className="mt-3 pt-2.5 border-t border-slate-100">
             <div className="flex items-center justify-between gap-2 text-[11px] mb-1">
               <span className="font-semibold text-slate-600">
-                Eligibility Score: <strong className={isEligible ? 'text-emerald-700' : isPotential ? 'text-amber-700' : 'text-slate-700'}>{matchPercentage}%</strong>
+                {currentLang === 'pa' ? 'ਯੋਗਤਾ ਸਕੋਰ:' : currentLang === 'hi' ? 'पात्रता स्कोर:' : 'Eligibility Score:'}{' '}
+                <strong className={isEligible ? 'text-emerald-700' : isPotential ? 'text-amber-700' : 'text-slate-700'}>{matchPercentage}%</strong>
               </span>
 
               <button
@@ -219,7 +231,11 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 onClick={() => setShowExplanation(prev => !prev)}
                 className="text-blue-700 hover:text-blue-900 font-bold flex items-center gap-0.5 text-[11px] cursor-pointer"
               >
-                <span>{showExplanation ? 'Hide Reasons' : 'Why am I eligible?'}</span>
+                <span>
+                  {showExplanation
+                    ? (currentLang === 'pa' ? 'ਕਾਰਨ ਲੁਕਾਓ' : currentLang === 'hi' ? 'कारण छिपाएं' : 'Hide Reasons')
+                    : (currentLang === 'pa' ? 'ਯੋਗਤਾ ਵੇਰਵਾ ਦੇਖੋ' : currentLang === 'hi' ? 'पात्रता विवरण देखें' : 'Why am I eligible?')}
+                </span>
                 {showExplanation ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </button>
             </div>
@@ -238,7 +254,11 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
             {showExplanation && (
               <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 animate-in fade-in">
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Rule-by-Rule Eligibility Verification:
+                  {currentLang === 'pa'
+                    ? 'ਨਿਯਮ-ਅਨੁਸਾਰ ਯੋਗਤਾ ਜਾਂਚ:'
+                    : currentLang === 'hi'
+                    ? 'नियम-वार पात्रता सत्यापन:'
+                    : 'Rule-by-Rule Eligibility Verification:'}
                 </div>
 
                 <div className="space-y-1.5">
@@ -253,7 +273,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                         <span className={c.isMet ? 'font-semibold text-emerald-950' : 'font-semibold text-rose-950'}>
                           {currentLang === 'pa' ? c.labelPa : currentLang === 'hi' ? c.labelHi : c.labelEn}:
                         </span>{' '}
-                        <span className="text-slate-600">{c.userValueDescription} (Requirement: {c.requiredDescription})</span>
+                        <span className="text-slate-600">{c.userValueDescription} ({c.requiredDescription})</span>
                       </div>
                     </div>
                   ))}
@@ -261,7 +281,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
 
                 {evaluation.failedReasons.length > 0 && (
                   <div className="pt-1.5 text-[10px] text-rose-700 font-medium">
-                    ⚠️ Note: {evaluation.failedReasons.join(', ')}
+                    ⚠️ {evaluation.failedReasons.join(', ')}
                   </div>
                 )}
               </div>
@@ -445,7 +465,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                       ? 'bg-rose-50 text-rose-800 border border-rose-200/70'
                       : 'bg-amber-50 text-amber-800 border border-amber-200/70'
                   }`}>
-                    {meta.isMandatory ? 'Mandatory' : 'If Applicable'}
+                    {badgeLabel}
                   </span>
                 </div>
               );
@@ -458,8 +478,13 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 onClick={handleOpenAllDocs}
                 className="w-full py-1 text-center text-[11px] font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer flex items-center justify-center gap-1"
               >
-                <span>+{scheme.requiredDocuments.length - 3} more documents</span>
-                <span className="text-slate-400 font-normal">• View All</span>
+                <span>
+                  {currentLang === 'pa'
+                    ? `+${scheme.requiredDocuments.length - 3} ਹੋਰ ਦਸਤਾਵੇਜ਼ ਦੇਖੋ`
+                    : currentLang === 'hi'
+                    ? `+${scheme.requiredDocuments.length - 3} और दस्तावेज़ देखें`
+                    : `+${scheme.requiredDocuments.length - 3} more documents`}
+                </span>
               </button>
             ) : (
               <button
@@ -467,7 +492,13 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 onClick={handleOpenAllDocs}
                 className="w-full py-1 text-center text-[10px] font-bold text-slate-500 hover:text-blue-700 cursor-pointer flex items-center justify-center gap-1"
               >
-                <span>View Full Document Checklist &amp; Authorities</span>
+                <span>
+                  {currentLang === 'pa'
+                    ? 'ਪੂਰੀ ਦਸਤਾਵੇਜ਼ ਸੂਚੀ ਦੇਖੋ'
+                    : currentLang === 'hi'
+                    ? 'पूरी दस्तावेज़ सूची देखें'
+                    : 'View Full Document Checklist & Authorities'}
+                </span>
               </button>
             )}
           </div>
@@ -479,7 +510,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
               <span className="truncate">{scheme.applicationDeadline}</span>
             </div>
             <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded shrink-0">
-              ₹0 App Fee
+              {currentLang === 'pa' ? '₹0 ਮੁਫ਼ਤ ਅਰਜ਼ੀ' : currentLang === 'hi' ? '₹0 निःशुल्क' : '₹0 App Fee'}
             </span>
           </div>
         </div>
@@ -496,18 +527,30 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
               title="Personalized Gemini 3.8 Flash AI advice"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-600 fill-amber-300" />
-              <span>AI Advisor</span>
+              <span>{currentLang === 'pa' ? 'AI ਸਲਾਹਕਾਰ' : currentLang === 'hi' ? 'AI सलाहकार' : 'AI Advisor'}</span>
             </button>
           )}
 
           <button
             type="button"
+            onClick={() => onOpenDetails(scheme, 'estimator')}
+            data-testid={`open-estimator-card-btn-${scheme.id}`}
+            className="flex items-center gap-1 text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+            title="Calculate estimated financial benefit"
+          >
+            <Calculator className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="hidden sm:inline">{currentLang === 'pa' ? 'ਲਾਭ ਹਿਸਾਬ' : currentLang === 'hi' ? 'लाभ गणना' : 'Estimator'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => onOpenTutorial(scheme)}
+            data-testid={`open-tutorial-card-btn-${scheme.id}`}
             className="flex items-center gap-1 text-[11px] font-semibold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
             title="Watch verified video application guide"
           >
             <Youtube className="w-3.5 h-3.5 text-rose-600" />
-            <span className="hidden sm:inline">Tutorial</span>
+            <span className="hidden sm:inline">{currentLang === 'pa' ? 'ਵੀਡੀਓ' : currentLang === 'hi' ? 'वीडियो' : 'Tutorial'}</span>
           </button>
 
           {onOpenScanner && (
@@ -518,7 +561,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
               title="Scan and detect missing documents"
             >
               <Scan className="w-3.5 h-3.5 text-teal-600" />
-              <span className="hidden sm:inline">Scan Docs</span>
+              <span className="hidden sm:inline">{currentLang === 'pa' ? 'ਸਕੈਨ' : currentLang === 'hi' ? 'स्कैन' : 'Scan Docs'}</span>
             </button>
           )}
 
@@ -530,12 +573,13 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
             title="Open verified official portal"
           >
             <ExternalLink className="w-3 h-3" />
-            <span className="hidden sm:inline">Portal</span>
+            <span className="hidden sm:inline">{currentLang === 'pa' ? 'ਪੋਰਟਲ' : currentLang === 'hi' ? 'पोर्टल' : 'Portal'}</span>
           </a>
         </div>
 
         <button
           type="button"
+          data-testid="open-scheme-details-btn"
           onClick={() => onOpenDetails(scheme, 'overview')}
           className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 px-3.5 py-1.5 rounded-lg shadow-xs active:scale-95 transition-all ml-auto cursor-pointer"
         >
