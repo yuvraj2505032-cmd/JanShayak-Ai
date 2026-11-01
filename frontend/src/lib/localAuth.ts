@@ -111,14 +111,26 @@ export async function createLocalAccount(email: string, password: string): Promi
 
 export async function signInLocalAccount(email: string, password: string): Promise<LocalAccount> {
   const credentials = validateCredentials(email, password);
-  const account = readAccounts().find(candidate => candidate.email === credentials.email);
-  if (!account) throw new Error('No local account was found for this email. Check the email or create an account.');
+  const accounts = readAccounts();
+  const account = accounts.find(candidate => candidate.email === credentials.email);
+  if (!account) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const newAccount: StoredAccount = {
+      id: createAccountId(),
+      email: credentials.email,
+      salt: bytesToHex(salt),
+      passwordHash: await hashPassword(credentials.password, salt)
+    };
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify([...accounts, newAccount]));
+    localStorage.setItem(SESSION_STORAGE_KEY, newAccount.id);
+    return toPublicAccount(newAccount);
+  }
 
   const actualHash = await hashPassword(credentials.password, hexToBytes(account.salt));
   const expected = hexToBytes(account.passwordHash);
   const actual = hexToBytes(actualHash);
   const matches = expected.length === actual.length && expected.every((byte, index) => byte === actual[index]);
-  if (!matches) throw new Error('Incorrect password. Try again.');
+  if (!matches) throw new Error('Incorrect password. Try again or use Forgot password to reset it.');
 
   localStorage.setItem(SESSION_STORAGE_KEY, account.id);
   return toPublicAccount(account);
@@ -164,11 +176,21 @@ export async function resetLocalAccountPassword(email: string, newPassword: stri
   const credentials = validateCredentials(email, newPassword);
   const accounts = readAccounts();
   const accountIndex = accounts.findIndex(candidate => candidate.email === credentials.email);
-  if (accountIndex === -1) {
-    throw new Error('No local account was found for this email. Check the email or create an account.');
-  }
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const passwordHash = await hashPassword(credentials.password, salt);
+
+  if (accountIndex === -1) {
+    const newAccount: StoredAccount = {
+      id: createAccountId(),
+      email: credentials.email,
+      salt: bytesToHex(salt),
+      passwordHash
+    };
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify([...accounts, newAccount]));
+    localStorage.setItem(SESSION_STORAGE_KEY, newAccount.id);
+    return toPublicAccount(newAccount);
+  }
+
   const updatedAccount: StoredAccount = {
     ...accounts[accountIndex],
     salt: bytesToHex(salt),

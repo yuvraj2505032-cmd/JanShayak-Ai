@@ -572,13 +572,25 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                 }`}
               >
                 {!isUser && (
-                  <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-100 text-[10px] font-bold text-teal-800">
-                    <span className="flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                      {assistantLang === 'pa'
-                        ? msg.isAiGrounded ? 'ਪ੍ਰਮਾਣਿਤ ਸਰਕਾਰੀ ਜਾਣਕਾਰੀ' : 'ਜਨਸਹਾਇਕ AI'
-                        : msg.isAiGrounded ? 'Verified Scheme Information' : 'Jansahayak AI'}
-                    </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-100 text-[10px] font-bold text-teal-800">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-emerald-800">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                        {assistantLang === 'pa'
+                          ? 'ਪ੍ਰਮਾਣਿਤ ਸਰਕਾਰੀ ਨਿਯਮ (.gov.in)'
+                          : assistantLang === 'hi'
+                          ? 'सत्यापित सरकारी नियम (.gov.in)'
+                          : 'Verified .gov.in Rules'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-amber-900">
+                        <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                        {assistantLang === 'pa'
+                          ? 'AI ਮਾਰਗਦਰਸ਼ਨ'
+                          : assistantLang === 'hi'
+                          ? 'AI मार्गदर्शन'
+                          : 'AI Guidance'}
+                      </span>
+                    </div>
 
                     <button
                       type="button"

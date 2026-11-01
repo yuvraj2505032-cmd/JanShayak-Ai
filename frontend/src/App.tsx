@@ -27,9 +27,18 @@ import {
   type AdminSchemeKnowledgeState
 } from './utils/adminSchemeManager';
 
+import {
+  DEFAULT_ADVANCED_FILTERS,
+  filterSchemesAdvanced,
+  getTopRecommendedSchemes,
+  recordRecentlyViewedScheme,
+  type AdvancedSearchFilters,
+} from './utils/advancedSchemeFilter';
+
 // Components
 import { Navbar } from './components/Navbar';
 import { HeroBanner } from './components/HeroBanner';
+import { SmartDashboardHub } from './components/SmartDashboardHub';
 import { ProfileWizard } from './components/ProfileWizard';
 import { SchemeCard } from './components/SchemeCard';
 import { SchemeDetailModal } from './components/SchemeDetailModal';
@@ -50,10 +59,21 @@ import { AiSchemeAdvisorModal } from './components/AiSchemeAdvisorModal';
 import { AiProfileRoadmapModal } from './components/AiProfileRoadmapModal';
 import { AdminConsole } from './components/AdminConsole';
 import type { AiAdminLogEntry } from './components/AdminConsole';
+import { SavedDeadlineBanner } from './components/SavedDeadlineBanner';
 import { DEFAULT_OFFICIAL_PORTALS, AI_DISCOVERABLE_SCHEMES_POOL } from './data/officialPortals';
 import { supabase, supabaseConfigurationError } from './lib/supabase';
 import { loadCitizenCloudData, parseCitizenProfile, parseSavedSchemeIds, parseTrackedItems, saveCitizenCloudData } from './lib/citizenCloudSync';
-import { createLocalAccount, resetLocalAccountPassword, restoreLocalAccount, signInLocalAccount, signOutLocalAccount, updateLocalAccountPassword } from './lib/localAuth';
+import {
+  createLocalAccount,
+  linkLocalAccountWithGoogle,
+  resetLocalAccountPassword,
+  restoreLocalAccount,
+  signInLocalAccount,
+  signInOrCreateGoogleLocalAccount,
+  signOutLocalAccount,
+  unlinkLocalAccountGoogle,
+  updateLocalAccountPassword
+} from './lib/localAuth';
 import type { LocalAccount } from './lib/localAuth';
 
 import { 
@@ -121,14 +141,59 @@ function loadStoredProfile(key: string): CitizenProfile | null {
 
 export default function App() {
   const [currentLang, setCurrentLang] = useState<Language>(getPreferredLanguage);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return localStorage.getItem('janshayak_theme') === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('all');
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedSearchFilters>(DEFAULT_ADVANCED_FILTERS);
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('janshayak_recently_viewed_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.filter((id): id is string => typeof id === 'string');
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    try {
+      localStorage.setItem('janshayak_theme', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const trackRecentlyViewed = (schemeId: string) => {
+    setRecentlyViewedIds((prev) => {
+      const next = recordRecentlyViewedScheme(prev, schemeId, 6);
+      try {
+        localStorage.setItem('janshayak_recently_viewed_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   const [profile, setProfile] = useState<CitizenProfile>(() => loadStoredProfile('janshayak_profile') ?? DEFAULT_PROFILE);
   const [managedSites, setManagedSites] = useState<ManagedOfficialSite[]>(() => {
     try {
-      const saved = localStorage.getItem('janshayak_official_portals_v2');
+      const saved = localStorage.getItem('janshayak_official_portals_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -136,11 +201,14 @@ export default function App() {
     } catch (e) {
       console.warn('Could not load saved official portals:', e);
     }
-    return [AI_DISCOVERABLE_SCHEMES_POOL[0].portal, ...DEFAULT_OFFICIAL_PORTALS];
+    return [
+      ...AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.portal),
+      ...DEFAULT_OFFICIAL_PORTALS,
+    ];
   });
   const [aiAddedSchemes, setAiAddedSchemes] = useState<Scheme[]>(() => {
     try {
-      const saved = localStorage.getItem('janshayak_ai_admin_schemes_v2');
+      const saved = localStorage.getItem('janshayak_ai_admin_schemes_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -148,20 +216,21 @@ export default function App() {
     } catch (e) {
       console.warn('Could not load AI admin schemes:', e);
     }
-    return [AI_DISCOVERABLE_SCHEMES_POOL[0].scheme];
+    // Automatically seed both New (2025-26) AND Purani (Classic) schemes discovered by AI
+    return AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.scheme);
   });
   const [isAiAutoSyncEnabled, setIsAiAutoSyncEnabled] = useState<boolean>(true);
   const [isAiDiscovering, setIsAiDiscovering] = useState<boolean>(false);
-  const [aiAdminLogs, setAiAdminLogs] = useState<AiAdminLogEntry[]>(() => [
-    {
-      id: 'log-initial-1',
+  const [aiAdminLogs, setAiAdminLogs] = useState<AiAdminLogEntry[]>(() =>
+    AI_DISCOVERABLE_SCHEMES_POOL.slice(0, 6).map((bundle, idx) => ({
+      id: `log-initial-${idx + 1}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      schemeTitle: AI_DISCOVERABLE_SCHEMES_POOL[0].scheme.titleEn,
-      portalTitle: AI_DISCOVERABLE_SCHEMES_POOL[0].portal.title,
-      portalUrl: AI_DISCOVERABLE_SCHEMES_POOL[0].portal.url,
-      mode: 'Auto-Scheduled'
-    }
-  ]);
+      schemeTitle: `${bundle.scheme.titleEn} (${bundle.era === 'new' ? 'New 2026' : 'Purani / Classic'})`,
+      portalTitle: bundle.portal.title,
+      portalUrl: bundle.portal.url,
+      mode: 'Auto-Scheduled',
+    }))
+  );
   const [portalCategoryFilter, setPortalCategoryFilter] = useState<string>('All');
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -464,7 +533,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('janshayak_official_portals_v2', JSON.stringify(managedSites));
+      localStorage.setItem('janshayak_official_portals_v3', JSON.stringify(managedSites));
     } catch (e) {
       console.warn('Could not save official portals to localStorage:', e);
     }
@@ -472,7 +541,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('janshayak_ai_admin_schemes_v2', JSON.stringify(aiAddedSchemes));
+      localStorage.setItem('janshayak_ai_admin_schemes_v3', JSON.stringify(aiAddedSchemes));
     } catch (e) {
       console.warn('Could not save AI admin schemes to localStorage:', e);
     }
@@ -617,7 +686,35 @@ export default function App() {
     }
   };
 
-  // Time-based autonomous AI Admin background sync (adds unadded schemes & links automatically over time)
+  const handleSyncAllAiSchemes = () => {
+    setAiAddedSchemes((prev) => {
+      const existingIds = new Set(prev.map((s) => s.id));
+      const missingSchemes = AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.scheme).filter(
+        (s) => !existingIds.has(s.id)
+      );
+      return [...missingSchemes, ...prev];
+    });
+    setManagedSites((prev) => {
+      const existingIds = new Set(prev.map((p) => p.id));
+      const missingPortals = AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.portal).filter(
+        (p) => !existingIds.has(p.id)
+      );
+      return [...missingPortals, ...prev];
+    });
+    setAiAdminLogs((prev) => [
+      {
+        id: `log-sync-all-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        schemeTitle: `Synced All ${AI_DISCOVERABLE_SCHEMES_POOL.length} New (2026) & Purani (Classic) Schemes`,
+        portalTitle: 'Official Punjab & India Portals (.gov.in)',
+        portalUrl: 'https://punjab.gov.in',
+        mode: 'AI On-Demand',
+      },
+      ...prev,
+    ]);
+  };
+
+  // Time-based autonomous AI Admin background sync (adds unadded New & Purani schemes & links automatically over time)
   useEffect(() => {
     if (!isAiAutoSyncEnabled) return;
     const interval = window.setInterval(() => {
@@ -626,7 +723,7 @@ export default function App() {
       if (hasRemaining) {
         void handleTriggerAiDiscovery(undefined, 'Auto-Scheduled');
       }
-    }, 45000);
+    }, 15000);
     return () => window.clearInterval(interval);
   }, [isAiAutoSyncEnabled, aiAddedSchemes]);
 
@@ -708,6 +805,46 @@ export default function App() {
     if (!supabase) return supabaseConfigurationError || 'Supabase is not configured.';
     const { error } = await supabase.auth.signOut();
     return error?.message ?? null;
+  };
+
+  const handleGoogleSignIn = async (googleEmail?: string) => {
+    if (supabase && !googleEmail) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+      });
+      if (error) return { error: error.message };
+      return { notice: 'Redirecting to Google Sign-In…' };
+    }
+    if (!googleEmail) {
+      return { error: 'Enter your Google email address to continue with Google.' };
+    }
+    const account = await signInOrCreateGoogleLocalAccount(googleEmail);
+    setLocalAccount(account);
+    return { notice: `Signed in and linked with Google (${account.googleLinkedEmail}).` };
+  };
+
+  const handleLinkGoogle = async (googleEmail?: string) => {
+    if (!googleEmail) {
+      return { error: 'Enter your Google email address to link your Google account.' };
+    }
+    if (localAccount) {
+      const updated = linkLocalAccountWithGoogle(localAccount.id, googleEmail);
+      setLocalAccount(updated);
+      return { notice: `Linked with Google (${updated.googleLinkedEmail}).` };
+    }
+    const created = await signInOrCreateGoogleLocalAccount(googleEmail);
+    setLocalAccount(created);
+    return { notice: `Signed in and linked with Google (${created.googleLinkedEmail}).` };
+  };
+
+  const handleUnlinkGoogle = async () => {
+    if (localAccount) {
+      const updated = unlinkLocalAccountGoogle(localAccount.id);
+      setLocalAccount(updated);
+      return { notice: 'Google account unlinked from this profile.' };
+    }
+    return {};
   };
 
   const handleSaveProfile = async () => {
@@ -896,56 +1033,41 @@ export default function App() {
   const eligibleCount = evaluations.filter(e => e.isEligible).length;
   const potentialCount = evaluations.filter(e => e.isPotentialMatch).length;
 
-  // Filter schemes based on search query and category tags
-  const filteredSchemes = allSchemes.filter(scheme => {
-    const matchesSearch = matchesSchemeSearch(scheme, searchQuery);
+  const effectiveAdvancedFilters: AdvancedSearchFilters = {
+    ...advancedFilters,
+    query: searchQuery,
+    category: activeCategoryFilter,
+  };
 
-    // Category filter
-    let matchesCategory = true;
-    if (activeCategoryFilter !== 'all') {
-      if (activeCategoryFilter === 'Saved') {
-        matchesCategory = savedSchemeIds.has(scheme.id);
-      } else if (activeCategoryFilter === 'Students') {
-        matchesCategory = Boolean(
-          scheme.requiresStudentStatus ||
-          scheme.eligibleOccupations?.includes('Student') ||
-          scheme.categoryTags.some(tag => /student|scholarship|education|college|school/i.test(tag))
-        );
-      } else {
-        const categoryText = [
-          ...scheme.categoryTags,
-          scheme.titleEn,
-          scheme.descriptionEn,
-          scheme.benefitAmountText,
-          scheme.benefitType,
-          scheme.departmentEn,
-          ...(scheme.eligibleOccupations ?? []),
-        ].join(' ').toLowerCase();
-        const categoryTerms: Record<string, RegExp> = {
-          Agriculture: /farm|agri|crop|kisan|dairy|livestock|seed|irrigat/,
-          Health: /health|medical|hospital|treatment|medicine|care|insurance/,
-          Education: /education|student|scholarship|school|college|learning|tuition|girl child/,
-        };
-        if (activeCategoryFilter === 'Finance') {
-          const financeText = [scheme.categoryTags.join(' '), scheme.benefitType, scheme.benefitAmountText].join(' ').toLowerCase();
-          matchesCategory = scheme.benefitType !== 'Health Cover' && /finance|loan|credit|pension|subsidy|financial|saving|direct cash transfer|cash transfer|allowance|wage/.test(financeText);
-        } else {
-          matchesCategory = categoryTerms[activeCategoryFilter]?.test(categoryText)
-            ?? scheme.categoryTags.some(tag => tag.toLowerCase().includes(activeCategoryFilter.toLowerCase()));
-        }
-      }
+  const filteredEvaluations = filterSchemesAdvanced(
+    evaluations,
+    effectiveAdvancedFilters,
+    Array.from(savedSchemeIds)
+  );
+  const filteredSchemes = filteredEvaluations.map(e => e.scheme);
+  const topRecommendedEvaluations = getTopRecommendedSchemes(evaluations, 3);
+  const recentlyViewedSchemes = recentlyViewedIds
+    .map(id => allSchemes.find(s => s.id === id))
+    .filter((s): s is Scheme => Boolean(s));
+
+  const handleUpdateAdvancedFilters = (patch: Partial<AdvancedSearchFilters>) => {
+    if (typeof patch.query === 'string') {
+      setSearchQuery(patch.query);
     }
+    if (typeof patch.category === 'string') {
+      setActiveCategoryFilter(patch.category);
+    }
+    if (patch.occupation && patch.occupation !== 'All') {
+      handleQuickOccupationSelect(patch.occupation);
+    }
+    setAdvancedFilters(prev => ({ ...prev, ...patch }));
+  };
 
-    return matchesSearch && matchesCategory;
-  }).sort((a, b) => {
-    // Confirmed matches first
-    const aEval = evaluationMap.get(a.id);
-    const bEval = evaluationMap.get(b.id);
-    const aScore = aEval?.isEligible ? 2 : aEval?.isPotentialMatch ? 1 : 0;
-    const bScore = bEval?.isEligible ? 2 : bEval?.isPotentialMatch ? 1 : 0;
-    if (bScore !== aScore) return bScore - aScore;
-    return (bEval?.matchPercentage || 0) - (aEval?.matchPercentage || 0);
-  });
+  const handleResetAllFilters = () => {
+    setSearchQuery('');
+    setActiveCategoryFilter('all');
+    setAdvancedFilters(DEFAULT_ADVANCED_FILTERS);
+  };
 
   const handleTrackScheme = (scheme: Scheme) => {
     const existing = trackedItems.find(item => item.schemeId === scheme.id);
@@ -1020,11 +1142,13 @@ export default function App() {
     scheme: Scheme, 
     initialTab: 'overview' | 'estimator' | 'eligibility' | 'documents' | 'steps' | 'tutorial' = 'overview'
   ) => {
+    trackRecentlyViewed(scheme.id);
     setSelectedScheme(scheme);
     setSelectedSchemeModalTab(initialTab);
   };
 
   const handleOpenAllDocuments = (scheme: Scheme) => {
+    trackRecentlyViewed(scheme.id);
     setSchemeForDocumentsModal(scheme);
   };
 
@@ -1047,7 +1171,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col font-sans text-slate-900 selection:bg-blue-100 selection:text-slate-900">
+    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col font-sans text-slate-900 dark:text-slate-100 selection:bg-blue-100 selection:text-slate-900 transition-colors">
       {/* Top Navbar */}
       <Navbar
         currentLang={currentLang}
@@ -1055,11 +1179,14 @@ export default function App() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         savedCount={savedSchemeIds.size}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         cloudAccount={{
           configured: Boolean(supabase),
           configurationError: supabaseConfigurationError,
           userEmail: authUser?.email ?? null,
           localUserEmail: localAccount?.email ?? null,
+          googleLinkedEmail: localAccount?.googleLinkedEmail ?? (authUser?.app_metadata?.provider === 'google' ? authUser.email : null),
           username: profile.username,
           localAuthError,
           syncStatus: cloudSyncStatus,
@@ -1069,12 +1196,16 @@ export default function App() {
           onLocalSignUp: handleLocalSignUp,
           onLocalResetPassword: handleLocalResetPassword,
           onCloudResetPassword: handleCloudResetPassword,
+          onGoogleSignIn: handleGoogleSignIn,
+          onLinkGoogle: handleLinkGoogle,
+          onUnlinkGoogle: handleUnlinkGoogle,
           onSignOut: handleSignOut
         }}
       />
 
       {activeTab === 'dashboard' && (
         <HeroBanner
+          currentLang={currentLang}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onStartWizard={() => setActiveTab('wizard')}
@@ -1084,6 +1215,10 @@ export default function App() {
             setActiveCategoryFilter(filter);
             if (filter === 'Students') {
               handleQuickOccupationSelect('Student');
+            } else if (filter === 'Farmers') {
+              handleQuickOccupationSelect('Farmer');
+            } else if (filter === 'Business Owners') {
+              handleQuickOccupationSelect('Self-Employed');
             }
           }}
           onAskAI={() => {
@@ -1099,6 +1234,36 @@ export default function App() {
         {/* TAB: DASHBOARD & SCHEME DIRECTORY */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
+            <SavedDeadlineBanner
+              savedSchemeIds={savedSchemeIds}
+              currentLang={currentLang}
+              onOpenScheme={(scheme) => handleOpenSchemeDetails(scheme, 'overview')}
+              onOpenDeadlinesTab={() => setActiveTab('deadlines')}
+            />
+            <SmartDashboardHub
+              currentLang={currentLang}
+              profile={profile}
+              evaluations={evaluations}
+              topRecommended={topRecommendedEvaluations}
+              recentlyViewedSchemes={recentlyViewedSchemes}
+              savedSchemeIds={Array.from(savedSchemeIds)}
+              advancedFilters={effectiveAdvancedFilters}
+              onUpdateFilters={handleUpdateAdvancedFilters}
+              onResetFilters={handleResetAllFilters}
+              onOpenSchemeDetails={(scheme) => handleOpenSchemeDetails(scheme, 'overview')}
+              onClearRecentlyViewed={() => {
+                setRecentlyViewedIds([]);
+                try {
+                  localStorage.removeItem('janshayak_recently_viewed_v1');
+                } catch {
+                  // ignore
+                }
+              }}
+              onNavigateTab={setActiveTab}
+              onSyncAllAiSchemes={handleSyncAllAiSchemes}
+              onTriggerAiDiscovery={(topic) => handleTriggerAiDiscovery(topic, 'AI On-Demand')}
+              isAiDiscovering={isAiDiscovering}
+            />
             {/* Active Occupation Quick Selector Bar (with Student selected) */}
             <section
               aria-label="Occupation selector"
@@ -1222,11 +1387,8 @@ export default function App() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setActiveCategoryFilter('all');
-                  }}
-                  className="text-xs font-bold text-blue-700 underline mt-2"
+                  onClick={handleResetAllFilters}
+                  className="text-xs font-bold text-blue-700 underline mt-2 cursor-pointer"
                 >
                   Clear all filters
                 </button>
@@ -1386,6 +1548,7 @@ export default function App() {
             onToggleAiAutoSync={setIsAiAutoSyncEnabled}
             aiAdminLogs={aiAdminLogs}
             onTriggerAiDiscovery={(topic) => handleTriggerAiDiscovery(topic, 'AI On-Demand')}
+            onSyncAllAiSchemes={handleSyncAllAiSchemes}
             isAiDiscovering={isAiDiscovering}
           />
         )}

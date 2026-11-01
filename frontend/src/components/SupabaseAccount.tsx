@@ -757,10 +757,10 @@ export const SupabaseAccount: React.FC<SupabaseAccountProps> = ({
             resetFeedback();
             setIsOpen(true);
           }}
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:px-3.5 sm:text-sm"
+          className="inline-flex h-8 sm:min-h-10 shrink-0 whitespace-nowrap items-center gap-1 rounded-xl bg-blue-700 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm cursor-pointer"
           aria-label={t.signIn}
         >
-          <LogIn className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <LogIn className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" aria-hidden="true" />
           <span>{t.signIn}</span>
         </button>
       )}

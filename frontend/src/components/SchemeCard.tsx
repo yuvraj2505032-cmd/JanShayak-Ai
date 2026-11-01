@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Scheme, EligibilityEvaluation, Language } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { getDocumentMeta, downloadSchemeSummary } from '../utils/documentHelper';
+import { getSchemeEra } from '../data/officialPortals';
 import { 
   ShieldCheck, 
   ExternalLink, 
@@ -114,37 +115,59 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
     : 'Required Documents';
 
   return (
-    <div className={`bg-white rounded-2xl border transition-all duration-200 hover:shadow-lg flex flex-col justify-between overflow-hidden relative ${
+    <div className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 hover:shadow-lg flex flex-col justify-between overflow-hidden relative ${
       isEligible 
-        ? 'border-emerald-300 ring-1 ring-emerald-400/30' 
+        ? 'border-emerald-300 dark:border-emerald-700 ring-1 ring-emerald-400/30' 
         : isPotential 
-        ? 'border-amber-300 ring-1 ring-amber-400/20' 
-        : 'border-slate-200'
+        ? 'border-amber-300 dark:border-amber-700 ring-1 ring-amber-400/20' 
+        : 'border-slate-200 dark:border-slate-800'
     }`}>
-      {/* Top Banner with Scheme Level & Eligibility Status */}
+      {/* Top Banner with Scheme Level, Provenance & Eligibility Status */}
       <div className="p-4 sm:p-5 pb-3">
         <div className="flex items-center justify-between gap-2 mb-2.5">
-          <span className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${
-            isPunjab 
-              ? 'bg-teal-50 text-teal-800 border border-teal-200' 
-              : 'bg-blue-50 text-blue-800 border border-blue-200'
-          }`}>
-            <ShieldCheck className="w-3 h-3" />
-            <span>
-              {isPunjab
-                ? (currentLang === 'pa' ? 'ਪੰਜਾਬ ਸਰਕਾਰ' : currentLang === 'hi' ? 'पंजाब सरकार' : scheme.level)
-                : (currentLang === 'pa' ? 'ਕੇਂਦਰ ਸਰਕਾਰ' : currentLang === 'hi' ? 'केंद्र सरकार' : scheme.level)}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${
+              isPunjab 
+                ? 'bg-teal-50 text-teal-800 border border-teal-200 dark:bg-teal-950/80 dark:text-teal-300 dark:border-teal-800' 
+                : 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/80 dark:text-blue-300 dark:border-blue-800'
+            }`}>
+              <ShieldCheck className="w-3 h-3" />
+              <span>
+                {isPunjab
+                  ? (currentLang === 'pa' ? 'ਪੰਜਾਬ ਸਰਕਾਰ' : currentLang === 'hi' ? 'पंजाब सरकार' : scheme.level)
+                  : (currentLang === 'pa' ? 'ਕੇਂਦਰ ਸਰਕਾਰ' : currentLang === 'hi' ? 'केंद्र सरकार' : scheme.level)}
+              </span>
             </span>
-          </span>
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800"
+              title={`Verified Source: ${scheme.sourceCitation}`}
+            >
+              Verified .gov.in
+            </span>
+            {getSchemeEra(scheme) === 'new' ? (
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-300 dark:bg-teal-950 dark:text-teal-200 dark:border-teal-700">
+                {currentLang === 'pa' ? 'ਨਵੀਂ ਸਕੀਮ 2026' : currentLang === 'hi' ? 'नई योजना 2026' : 'New 2026'}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800">
+                {currentLang === 'pa' ? 'ਪੁਰਾਣੀ / ਸਦਾਬਹਾਰ' : currentLang === 'hi' ? 'पुरानी / सदाबहार' : 'Purani / Classic'}
+              </span>
+            )}
+            {(scheme.id.startsWith('ai-') || scheme.categoryTags.includes('AI Admin Added')) && (
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 dark:bg-indigo-950 dark:text-indigo-200 dark:border-indigo-800">
+                AI Auto-Added
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-1.5">
             {evaluation && (
               <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${
                 isEligible
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
                   : isPotential
-                  ? 'bg-amber-50 text-amber-800 border-amber-300'
-                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                  ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
               }`}>
                 {isEligible ? (
                   <CheckCircle className="w-3 h-3 text-emerald-600" />
@@ -170,8 +193,8 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 }}
                 className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                   isSaved
-                    ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-xs'
-                    : 'bg-slate-50 text-slate-400 hover:text-slate-700 border-slate-200 hover:bg-slate-100'
+                    ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-xs dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700'
+                    : 'bg-slate-50 text-slate-400 hover:text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:hover:text-slate-200'
                 }`}
                 title={isSaved ? t.savedScheme : t.saveScheme}
                 aria-label={isSaved ? t.savedScheme : t.saveScheme}
@@ -185,11 +208,11 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
         {/* Scheme Title & Department */}
         <h3 
           onClick={() => onOpenDetails(scheme, 'overview')}
-          className="text-base sm:text-lg font-bold text-slate-900 hover:text-blue-700 cursor-pointer transition-colors leading-snug"
+          className="text-base sm:text-lg font-bold text-slate-900 dark:text-white hover:text-blue-700 dark:hover:text-blue-400 cursor-pointer transition-colors leading-snug"
         >
           {title}
         </h3>
-        <p className="text-[11px] text-slate-500 mt-1 line-clamp-1 font-medium">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1 font-medium">
           {department}
         </p>
 
@@ -198,30 +221,30 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
           {scheme.categoryTags.slice(0, 3).map((tag) => (
             <span 
               key={tag}
-              className="bg-slate-100 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-md"
+              className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-medium px-2 py-0.5 rounded-md"
             >
               {tag}
             </span>
           ))}
           {scheme.deadlineType === 'Seasonal' && (
-            <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
+            <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
               {currentLang === 'pa' ? 'ਮੌਸਮੀ ਚੱਕਰ' : currentLang === 'hi' ? 'मौसमी चक्र' : 'Seasonal Cycle'}
             </span>
           )}
         </div>
 
         {/* Key Benefits Callout Card */}
-        <div className="mt-3.5 p-3 rounded-xl bg-gradient-to-r from-blue-50/80 via-teal-50/50 to-blue-50/80 border border-blue-100/80">
-          <div className="text-[10px] font-semibold text-blue-900 uppercase tracking-wider">
+        <div className="mt-3.5 p-3 rounded-xl bg-gradient-to-r from-blue-50/80 via-teal-50/50 to-blue-50/80 dark:from-blue-950/60 dark:via-teal-950/40 dark:to-blue-950/60 border border-blue-100/80 dark:border-blue-900/60">
+          <div className="text-[10px] font-semibold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
             {t.benefits}
           </div>
-          <div className="text-xs sm:text-sm font-extrabold text-teal-900 mt-0.5">
+          <div className="text-xs sm:text-sm font-extrabold text-teal-900 dark:text-teal-200 mt-0.5">
             {scheme.benefitAmountText}
           </div>
         </div>
 
         {/* Short Description */}
-        <p className="text-xs text-slate-600 mt-3 line-clamp-2 leading-relaxed">
+        <p className="text-xs text-slate-600 dark:text-slate-300 mt-3 line-clamp-2 leading-relaxed">
           {description}
         </p>
 
@@ -300,15 +323,15 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
         {/* ------------------------------------------------------------------ */}
         {/* REQUIRED DOCUMENTS SECTION WITH THREE-DOT (⋮) MENU */}
         {/* ------------------------------------------------------------------ */}
-        <div className="mt-4 pt-3 border-t border-slate-100 bg-slate-50/70 -mx-4 -mb-3 sm:-mx-5 sm:-mb-3 p-4 sm:p-5 rounded-b-2xl">
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 -mx-4 -mb-3 sm:-mx-5 sm:-mb-3 p-4 sm:p-5 rounded-b-2xl">
           <div className="flex items-center justify-between mb-2 relative" ref={menuRef}>
             {/* Heading with Icon */}
             <div className="flex items-center gap-1.5">
               <span className="text-sm">📋</span>
-              <h4 className="text-xs font-bold text-slate-800 tracking-tight">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight">
                 {reqDocsHeading}
               </h4>
-              <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+              <span className="text-[10px] font-extrabold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800">
                 {scheme.requiredDocuments.length}
               </span>
             </div>
@@ -323,8 +346,8 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 }}
                 className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                   isMenuOpen 
-                    ? 'bg-blue-100 text-blue-900 border-blue-300' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 border-transparent hover:border-slate-300'
+                    ? 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-700' 
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800'
                 }`}
                 title="Scheme options and document actions"
                 aria-label="Three dot menu options"
@@ -335,7 +358,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
               {/* Dropdown Menu Popup */}
               {isMenuOpen && (
                 <div 
-                  className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
+                  className="absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
                   role="menu"
                 >
                   {/* Subtle Tricolor Accent Indicator */}
@@ -459,19 +482,19 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 <div 
                   key={docIdx}
                   onClick={handleOpenAllDocs}
-                  className="flex items-center justify-between gap-2 p-1.5 px-2.5 rounded-lg bg-white border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/30 transition-colors cursor-pointer text-xs"
+                  className="flex items-center justify-between gap-2 p-1.5 px-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 hover:border-blue-300 hover:bg-blue-50/30 transition-colors cursor-pointer text-xs"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm shrink-0">{meta.emoji}</span>
-                    <span className="font-semibold text-slate-800 truncate text-[11px] sm:text-xs">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate text-[11px] sm:text-xs">
                       {docName}
                     </span>
                   </div>
 
                   <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
                     meta.isMandatory
-                      ? 'bg-rose-50 text-rose-800 border border-rose-200/70'
-                      : 'bg-amber-50 text-amber-800 border border-amber-200/70'
+                      ? 'bg-rose-50 text-rose-800 border border-rose-200/70 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800'
+                      : 'bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
                   }`}>
                     {badgeLabel}
                   </span>
@@ -484,7 +507,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
               <button
                 type="button"
                 onClick={handleOpenAllDocs}
-                className="w-full py-1 text-center text-[11px] font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer flex items-center justify-center gap-1"
+                className="w-full py-1 text-center text-[11px] font-bold text-blue-700 dark:text-blue-400 hover:text-blue-900 hover:underline cursor-pointer flex items-center justify-center gap-1"
               >
                 <span>
                   {currentLang === 'pa'
@@ -498,7 +521,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
               <button
                 type="button"
                 onClick={handleOpenAllDocs}
-                className="w-full py-1 text-center text-[10px] font-bold text-slate-500 hover:text-blue-700 cursor-pointer flex items-center justify-center gap-1"
+                className="w-full py-1 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-blue-700 cursor-pointer flex items-center justify-center gap-1"
               >
                 <span>
                   {currentLang === 'pa'
@@ -512,12 +535,12 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
           </div>
 
           {/* Application Deadline */}
-          <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+          <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-1.5 font-medium truncate">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="truncate">{scheme.applicationDeadline}</span>
             </div>
-            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded shrink-0">
+            <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.2 rounded shrink-0">
               {currentLang === 'pa' ? '₹0 ਮੁਫ਼ਤ ਅਰਜ਼ੀ' : currentLang === 'hi' ? '₹0 निःशुल्क' : '₹0 App Fee'}
             </span>
           </div>
@@ -525,7 +548,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
       </div>
 
       {/* Card Actions Footer */}
-      <div className="p-4 bg-slate-50/90 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+      <div className="p-4 bg-slate-50/90 dark:bg-slate-900/90 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           {onOpenAiAdvisor && (
             <button

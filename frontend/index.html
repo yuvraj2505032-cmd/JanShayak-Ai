@@ -5,13 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Janshayak AI - Government Scheme Navigator</title>
     <link rel="icon" type="image/svg+xml" href="/janshayak-ai-logo.svg" />
-    <meta name="description" content="Janshayak AI helps citizens discover and check eligibility for Punjab and central government schemes." />
-    <meta property="og:title" content="Janshayak AI - Government Scheme Navigator" />
-    <meta property="og:description" content="Janshayak AI helps citizens discover and check eligibility for Punjab and central government schemes." />
+    <meta name="description" content="Janshayak AI helps citizens discover and check eligibility for Punjab and central government schemes with verified .gov.in portal links, multilingual AI guidance (English, Punjabi, Hindi), and document checklists." />
+    <meta name="keywords" content="Janshayak AI, Punjab Government Schemes, Central Government Schemes, Eligibility Checker, Post-Matric Scholarship, PM-KISAN, Ashirwad Scheme, Sarbat Sehat Bima, Sewa Kendra" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#1d4ed8" />
+
+    <!-- OpenGraph / Facebook / LinkedIn / Discord -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Janshayak AI" />
+    <meta property="og:title" content="Janshayak AI - Government Scheme Navigator" />
+    <meta property="og:description" content="Discover verified Punjab & Central Government welfare schemes, check instant eligibility, calculate benefits, and access official .gov.in portals in English, Punjabi, and Hindi." />
+    <meta property="og:image" content="/janshayak-ai-logo.svg" />
+
+    <!-- Twitter / X Cards -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Janshayak AI - Government Scheme Navigator" />
+    <meta name="twitter:description" content="Discover verified Punjab & Central Government welfare schemes, check instant eligibility, calculate benefits, and access official .gov.in portals in English, Punjabi, and Hindi." />
+    <meta name="twitter:image" content="/janshayak-ai-logo.svg" />
+
+    <link rel="canonical" id="canonical-link" href="" />
+    <script>
+      document.getElementById('canonical-link').setAttribute('href', window.location.origin + window.location.pathname);
+    </script>
+
+    <!-- Schema.org Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Janshayak AI - Government Scheme Navigator",
+            "applicationCategory": "GovernmentService",
+            "operatingSystem": "Web",
+            "inLanguage": ["en", "pa", "hi"],
+            "description": "AI-powered citizen welfare navigator for verified Punjab State and Central Government schemes, instant eligibility verification, document checklists, and official .gov.in portal links.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "INR"
+            }
+          },
+          {
+            "@type": "GovernmentService",
+            "name": "Janshayak AI Citizen Welfare & Scheme Eligibility Service",
+            "serviceType": "Social Welfare & Public Benefit Discovery",
+            "areaServed": {
+              "@type": "AdministrativeArea",
+              "name": "Punjab, India"
+            },
+            "availableChannel": {
+              "@type": "ServiceChannel",
+              "availableLanguage": ["English", "Punjabi", "Hindi"]
+            }
+          }
+        ]
+      }
+    </script>
   </head>
-  <body>
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

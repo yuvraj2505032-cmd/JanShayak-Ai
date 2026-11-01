@@ -58,6 +58,7 @@ interface AdminConsoleProps {
   onToggleAiAutoSync?: (enabled: boolean) => void;
   aiAdminLogs?: AiAdminLogEntry[];
   onTriggerAiDiscovery?: (customTopic?: string) => Promise<void>;
+  onSyncAllAiSchemes?: () => void;
   isAiDiscovering?: boolean;
 }
 
@@ -139,6 +140,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   onToggleAiAutoSync,
   aiAdminLogs = [],
   onTriggerAiDiscovery,
+  onSyncAllAiSchemes,
   isAiDiscovering = false
 }) => {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -450,12 +452,23 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
             </button>
           </form>
 
-          <div className="flex items-center lg:col-span-4 lg:justify-end">
+          <div className="flex flex-wrap items-center gap-2 lg:col-span-4 lg:justify-end">
+            {onSyncAllAiSchemes && (
+              <button
+                type="button"
+                data-testid="admin-sync-all-ai-schemes-btn"
+                onClick={onSyncAllAiSchemes}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 py-2.5 text-xs sm:text-sm font-extrabold text-slate-950 shadow-md transition hover:bg-amber-300 cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Sync All New + Purani Schemes</span>
+              </button>
+            )}
             <button
               type="button"
               disabled={isAiDiscovering}
               onClick={() => onTriggerAiDiscovery?.()}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-60 lg:w-auto"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-60 cursor-pointer"
             >
               <RefreshCw className={`h-4 w-4 ${isAiDiscovering ? 'animate-spin' : ''}`} />
               <span>Run Scheduled AI Sync Now</span>

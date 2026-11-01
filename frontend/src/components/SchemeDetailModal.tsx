@@ -119,6 +119,16 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
     }
   }, [resolvedScheme?.id]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!resolvedScheme) return null;
 
   const scheme = resolvedScheme;
@@ -661,9 +671,11 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
             </div>
 
             <button
+              type="button"
+              data-testid="close-scheme-detail-modal"
               onClick={onClose}
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0 cursor-pointer"
-              aria-label="Close"
+              aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>

@@ -24,7 +24,19 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .map(o => o.trim())
   .filter(Boolean);
 
+app.disable('x-powered-by');
+
+// Security headers & CORS middleware
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 120;
+const ipRequestCounters = new Map<string, { count: number; resetAt: number }>();
+
 app.use((req, res, next) => {
+  // Standard HTTP security headers (allow AI Studio cross-origin preview iframe embedding)
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'microphone=(self), geolocation=(self), camera=()');
+
   const origin = req.headers.origin;
   if (origin && (allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -34,10 +46,28 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
+
+  // Lightweight rate limiting on API endpoints
+  if (req.path.startsWith('/api/')) {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'local';
+    const now = Date.now();
+    const record = ipRequestCounters.get(clientIp);
+    if (!record || now > record.resetAt) {
+      ipRequestCounters.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    } else {
+      record.count += 1;
+      if (record.count > RATE_LIMIT_MAX_REQUESTS) {
+        return res.status(429).json({
+          error: 'Too many requests. Please wait a moment before retrying.',
+        });
+      }
+    }
+  }
+
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // Initialize Backend Supabase Client if URL & Key are configured
 const backendSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
@@ -331,7 +361,7 @@ function sanitizeKnowledgeEntries(rawList: unknown): typeof SCHEME_KNOWLEDGE | n
   if (!Array.isArray(rawList) || rawList.length === 0) return null;
   const sanitized = rawList
     .filter((item): item is Record<string, any> => Boolean(item) && typeof item === 'object' && typeof (item as any).id === 'string' && typeof (item as any).nameEn === 'string')
-    .slice(0, 100)
+    .slice(0, 250)
     .map((item) => ({
       id: String(item.id).slice(0, 120),
       nameEn: String(item.nameEn).slice(0, 240),
@@ -797,12 +827,17 @@ async function findYoutubeVideoIdForScheme(queryText: string): Promise<string> {
 // API Route: AI Autonomous Admin — Discover & Generate New Government Scheme + Official Portal Link + YouTube Video
 app.post('/api/ai/admin-discover', async (req, res) => {
   try {
-    const { topic = '' } = req.body || {};
+    const { topic = '', era = 'both' } = req.body || {};
     const cleanTopic = String(topic || '').trim().slice(0, 200);
+    const eraHint = era === 'purani'
+      ? 'a classic / long-standing (Purani) Indian or Punjab Government welfare scheme'
+      : era === 'new'
+      ? 'a newly launched 2025-2026 Indian or Punjab Government welfare scheme'
+      : 'a verified new or classic Punjab/Central Government welfare scheme';
 
     if (aiClient && cleanTopic) {
       try {
-        const prompt = `Generate a realistic, verified Punjab or Central Government welfare scheme, its official .gov.in portal, and a descriptive YouTube tutorial video title matching the topic: "${cleanTopic}".
+        const prompt = `Generate ${eraHint}, its official .gov.in portal, and a descriptive YouTube tutorial video title matching the topic: "${cleanTopic}".
 Return ONLY valid JSON matching this exact structure (no markdown fences):
 {
   "scheme": {
