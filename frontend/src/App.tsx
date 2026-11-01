@@ -63,6 +63,7 @@ import type { AiAdminLogEntry } from './components/AdminConsole';
 import { SavedDeadlineBanner } from './components/SavedDeadlineBanner';
 import { DEFAULT_OFFICIAL_PORTALS, AI_DISCOVERABLE_SCHEMES_POOL } from './data/officialPortals';
 import { supabase, supabaseConfigurationError } from './lib/supabase';
+import { apiUrl } from './lib/apiUrl';
 import { loadCitizenCloudData, parseCitizenProfile, parseSavedSchemeIds, parseTrackedItems, saveCitizenCloudData } from './lib/citizenCloudSync';
 import {
   createLocalAccount,
@@ -586,7 +587,7 @@ export default function App() {
 
       if (customTopic) {
         try {
-          const resp = await fetch('/api/ai/admin-discover', {
+          const resp = await fetch(apiUrl('/api/ai/admin-discover'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ topic: customTopic })
@@ -1036,7 +1037,7 @@ export default function App() {
   useEffect(() => {
     if (!isAdminProfile(profile)) return;
     const summary = buildAiKnowledgeSummary(allSchemes);
-    fetch('/api/admin/knowledge-base', {
+    fetch(apiUrl('/api/admin/knowledge-base'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: profile.role, knowledgeBase: summary })

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CitizenProfile, Language, Scheme } from '../types/scheme';
 import { GOV_SCHEMES } from '../data/schemes';
 import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
+import { apiUrl } from '../lib/apiUrl';
 import { 
   Sparkles, 
   X, 
@@ -43,7 +44,7 @@ export const AiProfileRoadmapModal: React.FC<AiProfileRoadmapModalProps> = ({
     setError(null);
 
     try {
-      const res = await fetch('/api/ai/profile-analysis', {
+      const res = await fetch(apiUrl('/api/ai/profile-analysis'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

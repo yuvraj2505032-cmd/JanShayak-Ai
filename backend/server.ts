@@ -10,19 +10,33 @@ import { SchemeJSON, EligibilityRequestBody, EvaluatedSchemeMatch } from '../sha
 import { generateGroqText, OfficialSearchSource, searchOfficialSources } from './providers.js';
 import { getLanguageName, parseAssistantOutput } from './chatUtils.js';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+dotenv.config({
+  path: [
+    path.resolve(__dirname, '.env'),
+    path.resolve(__dirname, '../.env'),
+  ],
+});
+
 const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+function normalizeOrigin(value: string): string {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value.trim().replace(/\/+$/, '');
+  }
+}
 
 // Configure CORS from CORS_ORIGINS environment variable
 const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
+const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
 
 app.disable('x-powered-by');
 
@@ -38,7 +52,11 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'microphone=(self), geolocation=(self), camera=()');
 
   const origin = req.headers.origin;
-  if (origin && (allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
+  if (origin && (
+    normalizedAllowedOrigins.length === 0 ||
+    normalizedAllowedOrigins.includes('*') ||
+    normalizedAllowedOrigins.includes(normalizeOrigin(origin))
+  )) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

@@ -16,6 +16,7 @@ import {
   PhoneCall
 } from 'lucide-react';
 import { printSchemeDocument } from '../utils/printHelper';
+import { apiUrl } from '../lib/apiUrl';
 
 interface AiSchemeAdvisorModalProps {
   scheme: Scheme | null;
@@ -42,7 +43,7 @@ export const AiSchemeAdvisorModal: React.FC<AiSchemeAdvisorModalProps> = ({
     setError(null);
 
     try {
-      const res = await fetch('/api/ai/advisor', {
+      const res = await fetch(apiUrl('/api/ai/advisor'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

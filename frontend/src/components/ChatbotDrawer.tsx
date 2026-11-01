@@ -4,6 +4,7 @@ import type { AssistantAppAction } from '../../../shared/types/backend';
 import { TRANSLATIONS } from '../data/translations';
 import { GOV_SCHEMES } from '../data/schemes';
 import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
+import { apiUrl } from '../lib/apiUrl';
 import { 
   X, 
   Send, 
@@ -304,7 +305,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -742,6 +743,19 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
           <span>DPDP Act</span>
         </span>
       </div>
+      <p className="px-3.5 pb-2 text-[10px] text-slate-500">
+        {hasConsent
+          ? assistantLang === 'pa'
+            ? 'ਲਾਈਵ AI ਸਹਾਇਤਾ ਚਾਲੂ ਹੈ। ਤੁਹਾਡਾ ਸਵਾਲ ਸਹਿਮਤ AI ਸੇਵਾਵਾਂ ਨੂੰ ਭੇਜਿਆ ਜਾਵੇਗਾ।'
+            : assistantLang === 'hi'
+              ? 'लाइव AI सहायता चालू है। आपका प्रश्न सहमत AI सेवाओं को भेजा जाएगा।'
+              : 'Live AI is enabled. Your question will be sent to the selected AI providers.'
+          : assistantLang === 'pa'
+            ? 'ਲਾਈਵ AI ਲਈ ਉੱਪਰ ਸਹਿਮਤੀ ਦਿਓ; ਨਹੀਂ ਤਾਂ ਸਿਰਫ਼ ਸਥਾਨਕ ਯੋਜਨਾ ਜਾਣਕਾਰੀ ਮਿਲੇਗੀ।'
+            : assistantLang === 'hi'
+              ? 'लाइव AI के लिए ऊपर सहमति दें; अन्यथा केवल स्थानीय योजना जानकारी मिलेगी।'
+              : 'Enable consent above for live AI; otherwise, replies use local scheme information only.'}
+      </p>
 
       {/* Input Box Footer with Voice Mic Button */}
       <div className="p-3 bg-white border-t border-slate-200">
