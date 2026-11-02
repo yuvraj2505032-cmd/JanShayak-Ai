@@ -4,12 +4,33 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const frontendDir = import.meta.dirname;
   return {
-    envDir: path.resolve(__dirname, '..'),
+    envDir: path.resolve(frontendDir, '..'),
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(frontendDir, '.'),
+      },
+    },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'react-dom',
+                test: /[\\/]node_modules[\\/]react-dom[\\/]/,
+                priority: 20,
+              },
+              {
+                name: 'supabase',
+                test: /[\\/]node_modules[\\/]@supabase[\\/]/,
+                priority: 10,
+              },
+            ],
+          },
+        },
       },
     },
     server: {

@@ -34,30 +34,30 @@ import {
 import { setOfflineRecentlyViewed } from './utils/offlineCache';
 
 // Components
-import { Navbar } from './components/Navbar';
 import { HeroBanner } from './components/HeroBanner';
-import { SmartDashboardHub } from './components/SmartDashboardHub';
-import { ProfileWizard } from './components/ProfileWizard';
 import { SchemeCard } from './components/SchemeCard';
-import { SchemeDetailModal } from './components/SchemeDetailModal';
-import { ChatbotDrawer } from './components/ChatbotDrawer';
-import { FamilyBenefitFinder } from './components/FamilyBenefitFinder';
-import { WhatIfSimulator } from './components/WhatIfSimulator';
-import { DocumentCenter } from './components/DocumentCenter';
-import { DistrictPortalFinder } from './components/DistrictPortalFinder';
-import { ApplicationTracker } from './components/ApplicationTracker';
 import { FraudProtectionBanner } from './components/FraudProtectionBanner';
-import { VideoGuidesHub } from './components/VideoGuidesHub';
-import { DocumentScannerModal } from './components/DocumentScannerModal';
-import { DeadlineReminderHub } from './components/DeadlineReminderHub';
-import { CyberFraudShieldModal } from './components/CyberFraudShieldModal';
-import { DashboardInsights } from './components/DashboardInsights';
-import { ViewAllDocumentsModal } from './components/ViewAllDocumentsModal';
-import { AiSchemeAdvisorModal } from './components/AiSchemeAdvisorModal';
-import { AiProfileRoadmapModal } from './components/AiProfileRoadmapModal';
-import { AdminConsole } from './components/AdminConsole';
 import type { AiAdminLogEntry } from './components/AdminConsole';
-import { SavedDeadlineBanner } from './components/SavedDeadlineBanner';
+const Navbar = React.lazy(() => import('./components/Navbar').then(module => ({ default: module.Navbar })));
+const SmartDashboardHub = React.lazy(() => import('./components/SmartDashboardHub').then(module => ({ default: module.SmartDashboardHub })));
+const ProfileWizard = React.lazy(() => import('./components/ProfileWizard').then(module => ({ default: module.ProfileWizard })));
+const ChatbotDrawer = React.lazy(() => import('./components/ChatbotDrawer').then(module => ({ default: module.ChatbotDrawer })));
+const WhatIfSimulator = React.lazy(() => import('./components/WhatIfSimulator').then(module => ({ default: module.WhatIfSimulator })));
+const DocumentCenter = React.lazy(() => import('./components/DocumentCenter').then(module => ({ default: module.DocumentCenter })));
+const SchemeDetailModal = React.lazy(() => import('./components/SchemeDetailModal').then(module => ({ default: module.SchemeDetailModal })));
+const FamilyBenefitFinder = React.lazy(() => import('./components/FamilyBenefitFinder').then(module => ({ default: module.FamilyBenefitFinder })));
+const DistrictPortalFinder = React.lazy(() => import('./components/DistrictPortalFinder').then(module => ({ default: module.DistrictPortalFinder })));
+const ApplicationTracker = React.lazy(() => import('./components/ApplicationTracker').then(module => ({ default: module.ApplicationTracker })));
+const VideoGuidesHub = React.lazy(() => import('./components/VideoGuidesHub').then(module => ({ default: module.VideoGuidesHub })));
+const DocumentScannerModal = React.lazy(() => import('./components/DocumentScannerModal').then(module => ({ default: module.DocumentScannerModal })));
+const DeadlineReminderHub = React.lazy(() => import('./components/DeadlineReminderHub').then(module => ({ default: module.DeadlineReminderHub })));
+const CyberFraudShieldModal = React.lazy(() => import('./components/CyberFraudShieldModal').then(module => ({ default: module.CyberFraudShieldModal })));
+const DashboardInsights = React.lazy(() => import('./components/DashboardInsights').then(module => ({ default: module.DashboardInsights })));
+const ViewAllDocumentsModal = React.lazy(() => import('./components/ViewAllDocumentsModal').then(module => ({ default: module.ViewAllDocumentsModal })));
+const AiSchemeAdvisorModal = React.lazy(() => import('./components/AiSchemeAdvisorModal').then(module => ({ default: module.AiSchemeAdvisorModal })));
+const AiProfileRoadmapModal = React.lazy(() => import('./components/AiProfileRoadmapModal').then(module => ({ default: module.AiProfileRoadmapModal })));
+const AdminConsole = React.lazy(() => import('./components/AdminConsole').then(module => ({ default: module.AdminConsole })));
+const SavedDeadlineBanner = React.lazy(() => import('./components/SavedDeadlineBanner').then(module => ({ default: module.SavedDeadlineBanner })));
 import { DEFAULT_OFFICIAL_PORTALS, AI_DISCOVERABLE_SCHEMES_POOL } from './data/officialPortals';
 import { supabase, supabaseConfigurationError } from './lib/supabase';
 import { apiUrl } from './lib/apiUrl';
@@ -1186,6 +1186,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col font-sans text-slate-900 dark:text-slate-100 selection:bg-blue-100 selection:text-slate-900 transition-colors">
+      <React.Suspense fallback={<div className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 text-center text-sm text-slate-500">Loading feature…</div>}>
       {/* Top Navbar */}
       <Navbar
         currentLang={currentLang}
@@ -1834,6 +1835,7 @@ export default function App() {
           setSelectedScheme(s);
         }}
       />
+      </React.Suspense>
 
       {!isVoiceAssistantOpen && (
         <button
