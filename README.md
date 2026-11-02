@@ -5,7 +5,7 @@ An AI-powered chatbot to help citizens discover and understand Indian Government
 Built with Gemini AI + Supabase + Vite + TypeScript.
 
 ### 🚀 Live Demo
-[https://jan-shayak-ai.vercel.app/]
+[https://jan-shayak.vercel.app/]
 
 ### ✨ Features
 - Ask in Punjabi / Hindi / English - Bot understands all
