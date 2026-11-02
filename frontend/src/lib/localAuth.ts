@@ -113,18 +113,7 @@ export async function signInLocalAccount(email: string, password: string): Promi
   const credentials = validateCredentials(email, password);
   const accounts = readAccounts();
   const account = accounts.find(candidate => candidate.email === credentials.email);
-  if (!account) {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const newAccount: StoredAccount = {
-      id: createAccountId(),
-      email: credentials.email,
-      salt: bytesToHex(salt),
-      passwordHash: await hashPassword(credentials.password, salt)
-    };
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify([...accounts, newAccount]));
-    localStorage.setItem(SESSION_STORAGE_KEY, newAccount.id);
-    return toPublicAccount(newAccount);
-  }
+  if (!account) throw new Error('No local account exists for this email. Create an account on this device first.');
 
   const actualHash = await hashPassword(credentials.password, hexToBytes(account.salt));
   const expected = hexToBytes(account.passwordHash);
@@ -176,20 +165,10 @@ export async function resetLocalAccountPassword(email: string, newPassword: stri
   const credentials = validateCredentials(email, newPassword);
   const accounts = readAccounts();
   const accountIndex = accounts.findIndex(candidate => candidate.email === credentials.email);
+  if (accountIndex === -1) throw new Error('No local account exists for this email.');
+
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const passwordHash = await hashPassword(credentials.password, salt);
-
-  if (accountIndex === -1) {
-    const newAccount: StoredAccount = {
-      id: createAccountId(),
-      email: credentials.email,
-      salt: bytesToHex(salt),
-      passwordHash
-    };
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify([...accounts, newAccount]));
-    localStorage.setItem(SESSION_STORAGE_KEY, newAccount.id);
-    return toPublicAccount(newAccount);
-  }
 
   const updatedAccount: StoredAccount = {
     ...accounts[accountIndex],
@@ -268,5 +247,3 @@ export function unlinkLocalAccountGoogle(accountId: string): LocalAccount {
   localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(updatedAccounts));
   return toPublicAccount(updatedAccount);
 }
-
-

@@ -92,6 +92,16 @@ describe('local device accounts', () => {
     assert.deepEqual(await signInLocalAccount('student@example.com', 'recovered-secret-789'), account);
   });
 
+  it('does not create a local account when resetting a password for an unknown email', async () => {
+    resetBrowserStorage();
+    await assert.rejects(
+      resetLocalAccountPassword('unknown@example.com', 'recovered-secret-789'),
+      /No local account/
+    );
+    assert.equal(localStorage.getItem('janshayak_local_accounts'), null);
+    assert.equal(restoreLocalAccount(), null);
+  });
+
   it('supports direct Google sign-in and linking/unlinking an existing account with Google', async () => {
     resetBrowserStorage();
     const googleAccount = await signInOrCreateGoogleLocalAccount('Yuvraj.Student@Gmail.com');
@@ -107,6 +117,5 @@ describe('local device accounts', () => {
     assert.equal(restoreLocalAccount()?.googleLinkedEmail, 'yuvraj2505032@gmail.com');
   });
 });
-
 
 

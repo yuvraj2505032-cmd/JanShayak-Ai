@@ -5,7 +5,7 @@ An AI-powered chatbot to help citizens discover and understand Indian Government
 Built with Gemini AI + Supabase + Vite + TypeScript.
 
 ### 🚀 Live Demo
-[Add your Vercel link here after deployment]
+[https://jan-shayak-ai.vercel.app/]
 
 ### ✨ Features
 - Ask in Punjabi / Hindi / English - Bot understands all
@@ -39,6 +39,8 @@ npm run dev
 ### AI provider and deployment configuration
 
 The Express API loads `backend/.env` first and then the root `.env`; environment variables already set by the hosting platform take precedence. Configure `GROQ_API_KEY` and/or `GEMINI_API_KEY` on the backend host. `TAVILY_API_KEY` enables official-source search. The chatbot only sends questions to third-party AI/search providers after the user opts in via its consent checkbox.
+
+Set `ADMIN_PORTAL_PASSWORD` on the backend to choose the admin password; admin editing and deletion are enabled only after the backend verifies it. The backend issues a signed, expiring admin session token and requires it for knowledge-base updates. If unset, local development uses the built-in default password.
 
 For deployments where the frontend and API are hosted separately (for example, this Vercel frontend with its Render Express API), `vercel.json` proxies `/api/*` requests to the configured Render service. For a different backend host, set the frontend build variable `VITE_API_BASE_URL` to that backend origin (no trailing slash), and add the deployed frontend's exact origin to the backend's `CORS_ORIGINS`. Leave `VITE_API_BASE_URL` empty when the frontend and API share an origin or Vercel's API rewrite is being used.
 

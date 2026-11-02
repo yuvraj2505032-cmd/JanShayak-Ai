@@ -6,8 +6,7 @@ import {
   Scheme, 
   ApplicationTrackerItem, 
   EligibilityEvaluation,
-  ManagedOfficialSite,
-  UserRole
+  ManagedOfficialSite
 } from './types/scheme';
 import { GOV_SCHEMES } from './data/schemes';
 import { TRANSLATIONS } from './data/translations';
@@ -19,8 +18,6 @@ import {
   buildAiKnowledgeSummary,
   computeActiveSchemes,
   deleteAdminScheme,
-  designateProfileRole,
-  isAdminProfile,
   restoreDeletedSchemes,
   updateAdminScheme,
   type AdminSchemeFormInput,
@@ -151,6 +148,10 @@ export default function App() {
     }
   });
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [adminSessionToken, setAdminSessionToken] = useState<string | null>(null);
+  useEffect(() => {
+    if (activeTab !== 'admin') setAdminSessionToken(null);
+  }, [activeTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('all');
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedSearchFilters>(DEFAULT_ADVANCED_FILTERS);
@@ -978,28 +979,16 @@ export default function App() {
     }
   }, [adminKnowledgeState]);
 
-  const handleDesignateRole = (nextRole: UserRole) => {
-    setProfile(prev => {
-      const updated = designateProfileRole(prev, nextRole);
-      const ownerId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
-      const profileKey = ownerId ? `janshayak_profile:${ownerId}` : 'janshayak_profile';
-      try {
-        localStorage.setItem(profileKey, JSON.stringify(updated));
-      } catch (e) {
-        console.warn('Could not persist designated role:', e);
-      }
-      return updated;
-    });
-  };
-
   const handleAddAdminScheme = (input: AdminSchemeFormInput): Scheme => {
-    const { nextState, createdScheme } = addAdminScheme(adminKnowledgeState, input, profile.role ?? 'Citizen');
+    if (!adminSessionToken) throw new Error('Unlock the admin portal before managing schemes.');
+    const { nextState, createdScheme } = addAdminScheme(adminKnowledgeState, input, 'Admin');
     setAdminKnowledgeState(nextState);
     return createdScheme;
   };
 
   const handleUpdateAdminScheme = (existingScheme: Scheme, input: AdminSchemeFormInput): Scheme => {
-    const { nextState, updatedScheme } = updateAdminScheme(adminKnowledgeState, existingScheme, input, profile.role ?? 'Citizen');
+    if (!adminSessionToken) throw new Error('Unlock the admin portal before managing schemes.');
+    const { nextState, updatedScheme } = updateAdminScheme(adminKnowledgeState, existingScheme, input, 'Admin');
     setAdminKnowledgeState(nextState);
     if (selectedScheme?.id === updatedScheme.id) {
       setSelectedScheme(updatedScheme);
@@ -1008,7 +997,8 @@ export default function App() {
   };
 
   const handleDeleteAdminScheme = (schemeId: string) => {
-    const nextState = deleteAdminScheme(adminKnowledgeState, schemeId, profile.role ?? 'Citizen');
+    if (!adminSessionToken) throw new Error('Unlock the admin portal before managing schemes.');
+    const nextState = deleteAdminScheme(adminKnowledgeState, schemeId, 'Admin');
     setAdminKnowledgeState(nextState);
     if (selectedScheme?.id === schemeId) {
       setSelectedScheme(null);
@@ -1016,7 +1006,8 @@ export default function App() {
   };
 
   const handleRestoreDeletedSchemes = () => {
-    const nextState = restoreDeletedSchemes(adminKnowledgeState, profile.role ?? 'Citizen');
+    if (!adminSessionToken) throw new Error('Unlock the admin portal before managing schemes.');
+    const nextState = restoreDeletedSchemes(adminKnowledgeState, 'Admin');
     setAdminKnowledgeState(nextState);
   };
 
@@ -1035,16 +1026,18 @@ export default function App() {
 
   // Sync the active scheme knowledge base to the backend AI server whenever Admin modifies schemes
   useEffect(() => {
-    if (!isAdminProfile(profile)) return;
+    if (!adminSessionToken) return;
     const summary = buildAiKnowledgeSummary(allSchemes);
     fetch(apiUrl('/api/admin/knowledge-base'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: profile.role, knowledgeBase: summary })
-    }).catch(() => {
-      // Non-fatal if offline; client also sends knowledgeBase with AI requests
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminSessionToken}` },
+      body: JSON.stringify({ knowledgeBase: summary })
+    }).then(response => {
+      if (!response.ok) console.error(`Admin knowledge-base sync failed with HTTP ${response.status}.`);
+    }).catch(error => {
+      console.error('Admin knowledge-base sync failed:', error);
     });
-  }, [allSchemes, profile.role]);
+  }, [allSchemes, adminSessionToken]);
 
   // Evaluate profile against all schemes
   const evaluations = evaluateAllSchemes(profile, allSchemes);
@@ -1319,22 +1312,6 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    data-testid="dashboard-toggle-admin-role-btn"
-                    onClick={() => handleDesignateRole(isAdminProfile(profile) ? 'Citizen' : 'Admin')}
-                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                      isAdminProfile(profile)
-                        ? 'border-amber-300 bg-amber-400 text-slate-950 shadow-xs'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    <span>
-                      {isAdminProfile(profile) ? 'Role: Admin (Active)' : 'Role: Citizen (Switch to Admin)'}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => setActiveTab('admin')}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-900 transition hover:bg-teal-100 cursor-pointer"
                   >
@@ -1373,7 +1350,7 @@ export default function App() {
                   Explore government schemes
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Discover benefits and support matched to your needs ({profile.occupation} profile active · Role: {profile.role ?? 'Citizen'}).
+                  Discover benefits and support matched to your needs ({profile.occupation} profile active).
                 </p>
               </div>
               <span className="text-sm font-medium text-slate-500">
@@ -1396,9 +1373,9 @@ export default function App() {
                     onOpenScanner={(s) => handleOpenScanner(s)}
                     isSaved={savedSchemeIds.has(scheme.id)}
                     onToggleSave={handleToggleSave}
-                    isAdminRole={isAdminProfile(profile)}
-                    onEditScheme={handleEditSchemeFromCard}
-                    onDeleteScheme={(s) => handleDeleteAdminScheme(s.id)}
+                    isAdminRole={Boolean(adminSessionToken)}
+                    onEditScheme={adminSessionToken ? handleEditSchemeFromCard : undefined}
+                    onDeleteScheme={adminSessionToken ? (s) => handleDeleteAdminScheme(s.id) : undefined}
                   />
                 ))}
               </div>
@@ -1514,7 +1491,6 @@ export default function App() {
                 window.scrollTo({ top: 350, behavior: 'smooth' });
               }}
               onOpenAiRoadmap={() => setIsAiRoadmapOpen(true)}
-              onOpenAdminConsole={() => setActiveTab('admin')}
               eligibleCount={eligibleCount}
               potentialCount={potentialCount}
             />
@@ -1540,9 +1516,9 @@ export default function App() {
                       onOpenScanner={(s) => handleOpenScanner(s)}
                       isSaved={savedSchemeIds.has(evalItem.scheme.id)}
                       onToggleSave={handleToggleSave}
-                      isAdminRole={isAdminProfile(profile)}
-                      onEditScheme={handleEditSchemeFromCard}
-                      onDeleteScheme={(s) => handleDeleteAdminScheme(s.id)}
+                      isAdminRole={Boolean(adminSessionToken)}
+                      onEditScheme={adminSessionToken ? handleEditSchemeFromCard : undefined}
+                      onDeleteScheme={adminSessionToken ? (s) => handleDeleteAdminScheme(s.id) : undefined}
                     />
                   ))}
               </div>
@@ -1553,8 +1529,7 @@ export default function App() {
         {activeTab === 'admin' && (
           <AdminConsole
             user={authUser}
-            userRole={profile.role ?? 'Citizen'}
-            onDesignateRole={handleDesignateRole}
+            onAuthorizationChange={setAdminSessionToken}
             allSchemes={allSchemes}
             adminKnowledgeState={adminKnowledgeState}
             onAddAdminScheme={handleAddAdminScheme}
@@ -1640,9 +1615,9 @@ export default function App() {
                     onOpenScanner={(s) => handleOpenScanner(s)}
                     isSaved={true}
                     onToggleSave={handleToggleSave}
-                    isAdminRole={isAdminProfile(profile)}
-                    onEditScheme={handleEditSchemeFromCard}
-                    onDeleteScheme={(s) => handleDeleteAdminScheme(s.id)}
+                    isAdminRole={Boolean(adminSessionToken)}
+                    onEditScheme={adminSessionToken ? handleEditSchemeFromCard : undefined}
+                    onDeleteScheme={adminSessionToken ? (s) => handleDeleteAdminScheme(s.id) : undefined}
                   />
                 ))}
               </div>

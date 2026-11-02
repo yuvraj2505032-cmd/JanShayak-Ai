@@ -170,6 +170,10 @@ export const FamilyBenefitFinder: React.FC<FamilyBenefitFinderProps> = ({
         </div>
       </div>
 
+      <p role="note" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        {t.familyDemoNotice}
+      </p>
+
       {/* Add Member Form Modal/Expansion */}
       {isAdding && (
         <form onSubmit={handleAddMember} className="bg-white rounded-2xl border border-blue-200 p-5 shadow-sm space-y-4">

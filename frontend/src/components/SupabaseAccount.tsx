@@ -403,6 +403,9 @@ export const SupabaseAccount: React.FC<SupabaseAccountProps> = ({
                       {t.googleEmailLabel}
                       <input
                         type="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         data-testid="link-google-email-input"
                         value={googleInputEmail}
                         onChange={(e) => setGoogleInputEmail(e.target.value)}
@@ -486,6 +489,9 @@ export const SupabaseAccount: React.FC<SupabaseAccountProps> = ({
                       {t.googleEmailLabel}
                       <input
                         type="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         required
                         data-testid="google-signin-email-input"
                         value={googleInputEmail}
@@ -567,6 +573,9 @@ export const SupabaseAccount: React.FC<SupabaseAccountProps> = ({
                   {t.emailAddressLabel}
                   <input
                     type="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     autoComplete="email"
                     maxLength={254}
                     required

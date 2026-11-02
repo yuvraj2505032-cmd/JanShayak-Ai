@@ -20,11 +20,12 @@ import {
   RotateCcw,
   Search
 } from 'lucide-react';
-import type { CitizenProfile, ManagedOfficialSite, Occupation, Scheme, SchemeLevel, UserRole } from '../types/scheme';
+import type { CitizenProfile, ManagedOfficialSite, Occupation, Scheme, SchemeLevel } from '../types/scheme';
 import type { AdminSchemeFormInput, AdminSchemeKnowledgeState } from '../utils/adminSchemeManager';
 import { getSchemeYoutubeBundle } from '../data/schemeVideos';
 import { parseCitizenProfile } from '../lib/citizenCloudSync';
 import { supabase } from '../lib/supabase';
+import { apiUrl } from '../lib/apiUrl';
 
 export interface AiAdminLogEntry {
   id: string;
@@ -39,8 +40,7 @@ export interface AiAdminLogEntry {
 
 interface AdminConsoleProps {
   user: User | null;
-  userRole?: UserRole;
-  onDesignateRole?: (role: UserRole) => void;
+  onAuthorizationChange?: (token: string | null) => void;
   allSchemes?: Scheme[];
   adminKnowledgeState?: AdminSchemeKnowledgeState;
   onAddAdminScheme?: (input: AdminSchemeFormInput) => Scheme;
@@ -69,7 +69,6 @@ interface CitizenRecord {
 }
 
 const EMPTY_FORM = { title: '', url: '', description: '', category: 'Students & Education' };
-
 interface SchemeCrudFormState {
   titleEn: string;
   titlePa: string;
@@ -121,8 +120,7 @@ function isOfficialUrl(value: string): boolean {
 
 export const AdminConsole: React.FC<AdminConsoleProps> = ({
   user,
-  userRole = 'Citizen',
-  onDesignateRole,
+  onAuthorizationChange,
   allSchemes = [],
   adminKnowledgeState,
   onAddAdminScheme,
@@ -144,6 +142,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   isAiDiscovering = false
 }) => {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPortalUnlocked, setIsPortalUnlocked] = useState(false);
+  const [portalPassword, setPortalPassword] = useState('');
+  const [portalPasswordError, setPortalPasswordError] = useState('');
+  const [isUnlockingPortal, setIsUnlockingPortal] = useState(false);
   const [profiles, setProfiles] = useState<CitizenRecord[]>([]);
   const [profileError, setProfileError] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
@@ -154,7 +156,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   const [customAiTopic, setCustomAiTopic] = useState('');
 
   // Admin Role & AI Knowledge Base Scheme CRUD State
-  const isProfileAdmin = userRole === 'Admin';
+  const isProfileAdmin = isPortalUnlocked;
   const [schemeForm, setSchemeForm] = useState<SchemeCrudFormState>(EMPTY_SCHEME_FORM);
   const [editingScheme, setEditingScheme] = useState<Scheme | null>(null);
   const [schemeFormError, setSchemeFormError] = useState('');
@@ -193,9 +195,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     e.preventDefault();
     setSchemeFormError('');
     setSchemeFormSuccess('');
-
     if (!isProfileAdmin) {
-      setSchemeFormError("Designate the 'Admin' role in your profile first to add or edit schemes.");
+      setSchemeFormError('Unlock the admin portal before adding or editing schemes.');
       return;
     }
 
@@ -238,7 +239,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     setSchemeFormError('');
     setSchemeFormSuccess('');
     if (!isProfileAdmin) {
-      setSchemeFormError("Designate the 'Admin' role in your profile first to delete schemes.");
+      setSchemeFormError('Unlock the admin portal before deleting schemes.');
       return;
     }
     try {
@@ -269,7 +270,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     setProfiles([]);
     setIsAdmin(false);
 
-    if (!user || !supabase) {
+    if (!isPortalUnlocked || !user || !supabase) {
       return;
     }
 
@@ -286,10 +287,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     return () => {
       active = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isPortalUnlocked]);
 
   useEffect(() => {
-    if (!isAdmin || !supabase) return;
+    if (!isPortalUnlocked || !isAdmin || !supabase) return;
     let active = true;
     supabase
       .from('citizen_app_data')
@@ -314,7 +315,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     return () => {
       active = false;
     };
-  }, [isAdmin]);
+  }, [isAdmin, isPortalUnlocked]);
 
   const handleAddSite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -392,6 +393,77 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     setCustomAiTopic('');
   };
 
+  const handlePortalUnlock = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsUnlockingPortal(true);
+    setPortalPasswordError('');
+    try {
+      const response = await fetch(apiUrl('/api/admin/unlock'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: portalPassword })
+      });
+      const result: unknown = await response.json();
+      if (!response.ok) {
+        const message = result && typeof result === 'object' && 'error' in result && typeof result.error === 'string'
+          ? result.error
+          : 'Could not verify admin password.';
+        throw new Error(message);
+      }
+      if (!result || typeof result !== 'object' || !('token' in result) || typeof result.token !== 'string') {
+        throw new Error('Admin authorization response was invalid.');
+      }
+
+      setPortalPassword('');
+      setPortalPasswordError('');
+      setIsPortalUnlocked(true);
+      onAuthorizationChange?.(result.token);
+    } catch (error) {
+      setPortalPasswordError(error instanceof Error ? error.message : 'Could not unlock admin portal.');
+    } finally {
+      setIsUnlockingPortal(false);
+    }
+  };
+
+  if (!isPortalUnlocked) {
+    return (
+      <section className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-lg sm:p-8">
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-800">
+          <Lock className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900">Admin portal locked</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Enter the admin password to open the Janshayak AI console.</p>
+        <form onSubmit={handlePortalUnlock} className="mt-6 space-y-4">
+          <label htmlFor="admin-portal-password" className="block text-sm font-semibold text-slate-700">
+            Admin password
+          </label>
+          <input
+            id="admin-portal-password"
+            type="password"
+            autoComplete="current-password"
+            value={portalPassword}
+            onChange={event => {
+              setPortalPassword(event.target.value);
+              setPortalPasswordError('');
+            }}
+            required
+            disabled={isUnlockingPortal}
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+          />
+          {portalPasswordError && <p role="alert" className="text-sm font-medium text-red-700">{portalPasswordError}</p>}
+          <button
+            type="submit"
+            disabled={isUnlockingPortal}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+          >
+            <Lock className="h-4 w-4" aria-hidden="true" />
+            {isUnlockingPortal ? 'Verifying…' : 'Unlock admin portal'}
+          </button>
+        </form>
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <header className="rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-teal-900 p-6 text-white shadow-xl sm:p-8">
@@ -419,6 +491,17 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
             <p className="text-xs text-blue-200">
               {aiAddedSchemes.length} AI-discovered schemes + YouTube videos · {sites.length} official links
             </p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsPortalUnlocked(false);
+                onAuthorizationChange?.(null);
+              }}
+              className="mt-1 inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+            >
+              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              Lock Admin Portal
+            </button>
             {onToggleAiAutoSync && (
               <button
                 type="button"
@@ -500,7 +583,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
             <div className="flex items-center gap-2">
               <ShieldCheck className={`h-4 w-4 ${isProfileAdmin ? 'text-emerald-600' : 'text-slate-400'}`} />
               <span className="text-xs font-bold text-slate-700">
-                Profile Role:
+                Admin access:
               </span>
               <span
                 data-testid="admin-console-role-status"
@@ -510,24 +593,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     : 'bg-slate-200 text-slate-700'
                 }`}
               >
-                {userRole}
+                {isProfileAdmin ? 'Authorized' : 'Locked'}
               </span>
             </div>
-
-            {onDesignateRole && (
-              <button
-                type="button"
-                data-testid="designate-admin-role-btn"
-                onClick={() => onDesignateRole(isProfileAdmin ? 'Citizen' : 'Admin')}
-                className={`rounded-xl px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
-                  isProfileAdmin
-                    ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    : 'bg-blue-700 text-white shadow-xs hover:bg-blue-800'
-                }`}
-              >
-                {isProfileAdmin ? "Switch Role to 'Citizen'" : "Designate 'Admin' Role"}
-              </button>
-            )}
           </div>
         </div>
 
@@ -539,24 +607,12 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
             <div className="flex items-start gap-3">
               <Lock className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-amber-950">
-                  Admin Role Required in User Profile State
-                </h3>
+                <h3 className="text-sm font-bold text-amber-950">Admin portal access required</h3>
                 <p className="text-xs text-amber-900 max-w-xl leading-relaxed">
-                  Your profile is currently set to the <strong>Citizen</strong> role. Designate the <strong>Admin</strong> role in your user profile state to unlock manually adding, editing, or deleting government scheme entries for the AI&apos;s knowledge base.
+                  Unlock the admin portal to manually add, edit, or delete government scheme entries for the AI&apos;s knowledge base.
                 </p>
               </div>
             </div>
-            {onDesignateRole && (
-              <button
-                type="button"
-                onClick={() => onDesignateRole('Admin')}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 text-xs font-extrabold shadow-xs transition cursor-pointer"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span>Unlock Admin Role Now</span>
-              </button>
-            )}
           </div>
         ) : (
           <div className="space-y-6">

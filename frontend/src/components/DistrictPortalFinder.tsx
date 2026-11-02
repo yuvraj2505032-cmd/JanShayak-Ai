@@ -29,8 +29,40 @@ export const DistrictPortalFinder: React.FC<DistrictPortalFinderProps> = ({
 }) => {
   const t = TRANSLATIONS[currentLang];
   const [districtSearch, setDistrictSearch] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [nearbyKendraMapUrl, setNearbyKendraMapUrl] = useState('');
 
   const activeDistrict = PUNJAB_DISTRICTS.find(d => d.name === selectedDistrictName) || PUNJAB_DISTRICTS[0];
+
+  const handleUseMyLocation = () => {
+    setLocationError('');
+    setNearbyKendraMapUrl('');
+    if (!navigator.geolocation) {
+      setLocationError(t.locationUnsupported);
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const query = encodeURIComponent(`Sewa Kendra near ${coords.latitude},${coords.longitude}`);
+        setNearbyKendraMapUrl(`https://www.google.com/maps/search/?api=1&query=${query}`);
+        setIsLocating(false);
+      },
+      error => {
+        setLocationError(
+          error.code === error.PERMISSION_DENIED
+            ? t.locationPermissionDenied
+            : error.code === error.TIMEOUT
+              ? t.locationTimeout
+              : t.locationUnavailable
+        );
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 }
+    );
+  };
 
   const filteredDistricts = PUNJAB_DISTRICTS.filter(d => 
     d.name.toLowerCase().includes(districtSearch.toLowerCase()) ||
@@ -65,6 +97,29 @@ export const DistrictPortalFinder: React.FC<DistrictPortalFinderProps> = ({
               className="w-full pl-9 pr-3 py-2 text-xs bg-white text-slate-900 rounded-xl focus:outline-hidden font-medium"
             />
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleUseMyLocation}
+              disabled={isLocating}
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-teal-500 px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-teal-400 disabled:cursor-wait disabled:opacity-60"
+            >
+              <MapPin className="h-4 w-4" aria-hidden="true" />
+              {isLocating ? t.locating : t.useMyLocation}
+            </button>
+            {nearbyKendraMapUrl && (
+              <a
+                href={nearbyKendraMapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-200 underline underline-offset-2 hover:text-white"
+              >
+                {t.viewNearbySewaKendras}
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            )}
+          </div>
+          {locationError && <p role="alert" className="mt-2 text-xs font-medium text-rose-200">{locationError}</p>}
         </div>
       </div>
 

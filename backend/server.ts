@@ -9,6 +9,7 @@ import { GOV_SCHEMES } from '../frontend/src/data/schemes.js';
 import { SchemeJSON, EligibilityRequestBody, EvaluatedSchemeMatch } from '../shared/types/backend.js';
 import { generateGroqText, OfficialSearchSource, searchOfficialSources } from './providers.js';
 import { getLanguageName, parseAssistantOutput } from './chatUtils.js';
+import { createAdminSessionToken, isValidAdminSessionToken, verifyAdminPortalPassword } from './adminAuth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +45,7 @@ app.disable('x-powered-by');
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 120;
 const ipRequestCounters = new Map<string, { count: number; resetAt: number }>();
+const adminUnlockAttempts = new Map<string, { count: number; resetAt: number }>();
 
 app.use((req, res, next) => {
   // Standard HTTP security headers (allow AI Studio cross-origin preview iframe embedding)
@@ -406,11 +408,32 @@ app.get('/api/admin/knowledge-base', (_req, res) => {
   });
 });
 
-app.post('/api/admin/knowledge-base', (req, res) => {
-  const { role, knowledgeBase } = req.body || {};
-  if (role !== 'Admin') {
-    return res.status(403).json({ error: 'Admin role is required in user profile state to update the AI knowledge base.' });
+app.post('/api/admin/unlock', (req, res) => {
+  const clientIp = req.socket.remoteAddress || 'local';
+  const now = Date.now();
+  const attempt = adminUnlockAttempts.get(clientIp);
+  const currentAttempt = attempt && now <= attempt.resetAt
+    ? attempt
+    : { count: 0, resetAt: now + 15 * 60_000 };
+  adminUnlockAttempts.set(clientIp, currentAttempt);
+  if (currentAttempt.count >= 5) {
+    return res.status(429).json({ error: 'Too many admin password attempts. Please wait 15 minutes.' });
   }
+  currentAttempt.count += 1;
+  if (!verifyAdminPortalPassword(req.body?.password)) {
+    return res.status(401).json({ error: 'Incorrect admin portal password.' });
+  }
+  adminUnlockAttempts.delete(clientIp);
+  return res.json({ token: createAdminSessionToken() });
+});
+
+app.post('/api/admin/knowledge-base', (req, res) => {
+  const authorization = req.header('authorization');
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : undefined;
+  if (!isValidAdminSessionToken(token)) {
+    return res.status(403).json({ error: 'An authorized admin portal session is required.' });
+  }
+  const { knowledgeBase } = req.body || {};
   const parsed = sanitizeKnowledgeEntries(knowledgeBase);
   if (!parsed) {
     return res.status(400).json({ error: 'Valid knowledgeBase array is required.' });
