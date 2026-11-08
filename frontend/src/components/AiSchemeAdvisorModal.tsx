@@ -16,6 +16,7 @@ import {
   PhoneCall
 } from 'lucide-react';
 import { printSchemeDocument } from '../utils/printHelper';
+import { generateOfflineSchemeAdvice } from '../utils/offlineCache';
 import { apiUrl } from '../lib/apiUrl';
 
 interface AiSchemeAdvisorModalProps {
@@ -43,6 +44,10 @@ export const AiSchemeAdvisorModal: React.FC<AiSchemeAdvisorModalProps> = ({
     setError(null);
 
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setAdvice(generateOfflineSchemeAdvice(scheme, profile, currentLang));
+        return;
+      }
       const res = await fetch(apiUrl('/api/ai/advisor'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,10 +64,11 @@ export const AiSchemeAdvisorModal: React.FC<AiSchemeAdvisorModalProps> = ({
       }
 
       const data = await res.json();
-      setAdvice(data.advice || '');
+      setAdvice(data.advice || generateOfflineSchemeAdvice(scheme, profile, currentLang));
     } catch (err) {
-      console.error('Error fetching AI advice:', err);
-      setError('Could not connect to AI advisor. Please try again.');
+      console.info('Using offline scheme advisor fallback:', err);
+      setAdvice(generateOfflineSchemeAdvice(scheme, profile, currentLang));
+      setError(null);
     } finally {
       setIsLoading(false);
     }

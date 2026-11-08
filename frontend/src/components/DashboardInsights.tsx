@@ -17,25 +17,28 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
 } from 'recharts';
-import { 
-  Scheme, 
-  EligibilityEvaluation, 
-  Language, 
-  CitizenProfile 
+import {
+  Scheme,
+  EligibilityEvaluation,
+  Language,
+  CitizenProfile,
 } from '../types/scheme';
-import { 
-  PieChart as PieIcon, 
-  BarChart3, 
-  TrendingUp, 
-  ShieldCheck, 
-  Layers, 
-  Sparkles, 
-  CheckCircle2, 
-  Building2, 
-  MapPin, 
-  Info,
+import {
+  computeAnalyticsSummary,
+  type CategoryAnalyticsRow,
+} from '../utils/schemeAnalytics';
+import {
+  PieChart as PieIcon,
+  BarChart3,
+  TrendingUp,
+  ShieldCheck,
+  Layers,
+  CheckCircle2,
+  Building2,
+  UserCheck,
   SlidersHorizontal,
-  ChevronRight
+  ArrowUpRight,
+  RotateCcw,
 } from 'lucide-react';
 
 interface DashboardInsightsProps {
@@ -45,27 +48,23 @@ interface DashboardInsightsProps {
   currentLang: Language;
   onSelectCategory?: (category: string) => void;
   onOpenScheme?: (scheme: Scheme) => void;
+  onChangeOccupation?: (occupation: CitizenProfile['occupation']) => void;
+  onOpenProfileWizard?: () => void;
 }
 
-interface CategoryDataPoint {
-  name: string;
-  namePa: string;
-  nameHi: string;
-  value: number;
-  color: string;
-  schemes: Scheme[];
-  eligibleSchemes: Scheme[];
-  description: string;
-}
-
-const CATEGORY_COLORS = [
-  '#0d9488', // teal-600 (Agriculture)
-  '#2563eb', // blue-600 (Health)
-  '#7c3aed', // violet-600 (Education)
-  '#ea580c', // orange-600 (Social Security & Pensions)
-  '#0891b2', // cyan-600 (Housing)
-  '#db2777', // pink-600 (Women & Family)
-  '#16a34a', // green-600 (Employment & MSME)
+const OCCUPATION_OPTIONS: Array<{
+  id: CitizenProfile['occupation'];
+  labelEn: string;
+  labelPa: string;
+  labelHi: string;
+}> = [
+  { id: 'Student', labelEn: 'Student', labelPa: 'ਵਿਦਿਆਰਥੀ', labelHi: 'छात्र' },
+  { id: 'Farmer', labelEn: 'Farmer', labelPa: 'ਕਿਸਾਨ', labelHi: 'किसान' },
+  { id: 'Daily Wage Worker', labelEn: 'Daily Wage Worker', labelPa: 'ਦਿਹਾੜੀਦਾਰ ਮਜ਼ਦੂਰ', labelHi: 'दिहाड़ी मजदूर' },
+  { id: 'Self-Employed', labelEn: 'Self-Employed', labelPa: 'ਸਵੈ-ਰੁਜ਼ਗਾਰ', labelHi: 'स्वरोजगार' },
+  { id: 'Unemployed Youth', labelEn: 'Unemployed Youth', labelPa: 'ਬੇਰੁਜ਼ਗਾਰ ਨੌਜਵਾਨ', labelHi: 'बेरोजगार युवा' },
+  { id: 'Senior Citizen', labelEn: 'Senior Citizen (60+)', labelPa: 'ਬਜ਼ੁਰਗ ਨਾਗਰਿਕ', labelHi: 'वरिष्ठ नागरिक' },
+  { id: 'Homemaker', labelEn: 'Homemaker', labelPa: 'ਘਰੇਲੂ ਔਰਤ', labelHi: 'गृहिणी' },
 ];
 
 export const DashboardInsights: React.FC<DashboardInsightsProps> = ({
@@ -74,395 +73,583 @@ export const DashboardInsights: React.FC<DashboardInsightsProps> = ({
   profile,
   currentLang,
   onSelectCategory,
-  onOpenScheme
+  onOpenScheme,
+  onChangeOccupation,
+  onOpenProfileWizard,
 }) => {
-  const [viewScope, setViewScope] = useState<'eligible' | 'all'>('eligible');
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [viewScope, setViewScope] = useState<'all' | 'eligible'>('all');
+  const [levelFilter, setLevelFilter] = useState<'ALL' | 'Central Government' | 'Punjab State' | 'Other States'>('ALL');
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('ALL');
+  const [activePieIndex, setActivePieIndex] = useState<number | null>(null);
 
-  // Map of scheme evaluation
+  const scopedSchemes = useMemo(() => {
+    if (levelFilter === 'ALL') return schemes;
+    if (levelFilter === 'Central Government') {
+      return schemes.filter((s) => s.level === 'Central Government');
+    }
+    if (levelFilter === 'Punjab State') {
+      return schemes.filter((s) => s.level === 'Punjab State' || s.state === 'Punjab');
+    }
+    return schemes.filter(
+      (s) => s.level !== 'Central Government' && s.level !== 'Punjab State' && s.state !== 'Punjab'
+    );
+  }, [schemes, levelFilter]);
+
   const evaluationMap = useMemo(() => {
     const map = new Map<string, EligibilityEvaluation>();
-    evaluations.forEach(e => map.set(e.schemeId, e));
+    evaluations.forEach((e) => map.set(e.schemeId, e));
     return map;
   }, [evaluations]);
 
-  // Helper to categorize each scheme into one of the 7 core citizen welfare pillars
-  const getPrimaryCategory = (scheme: Scheme): { key: string; labelEn: string; labelPa: string; labelHi: string } => {
-    const text = (scheme.titleEn + ' ' + scheme.categoryTags.join(' ') + ' ' + scheme.departmentEn).toLowerCase();
-    
-    if (text.includes('kisan') || text.includes('crop') || text.includes('farmer') || text.includes('agri') || text.includes('harvest')) {
-      return { key: 'Agriculture', labelEn: 'Agriculture & Farming', labelPa: 'ਖੇਤੀਬਾੜੀ ਅਤੇ ਕਿਸਾਨੀ', labelHi: 'कृषि एवं किसानी' };
-    }
-    if (text.includes('health') || text.includes('sehat') || text.includes('bima') || text.includes('medical') || text.includes('cancer') || text.includes('hospital')) {
-      return { key: 'Health', labelEn: 'Health & Medical Care', labelPa: 'ਸਿਹਤ ਅਤੇ ਇਲਾਜ', labelHi: 'स्वास्थ्य एवं चिकित्सा' };
-    }
-    if (text.includes('scholarship') || text.includes('education') || text.includes('student') || text.includes('matric') || text.includes('school') || text.includes('college')) {
-      return { key: 'Education', labelEn: 'Education & Scholarships', labelPa: 'ਸਿੱਖਿਆ ਅਤੇ ਵਜ਼ੀਫ਼ੇ', labelHi: 'शिक्षा एवं छात्रवृत्तियाँ' };
-    }
-    if (text.includes('pension') || text.includes('old age') || text.includes('disability') || text.includes('widow') || text.includes('destitute') || text.includes('senior')) {
-      return { key: 'Social Security', labelEn: 'Social Security & Pensions', labelPa: 'ਸਮਾਜਿਕ ਸੁਰੱਖਿਆ ਅਤੇ ਪੈਨਸ਼ਨਾਂ', labelHi: 'सामाजिक सुरक्षा एवं पेंशन' };
-    }
-    if (text.includes('awas') || text.includes('housing') || text.includes('shelter') || text.includes('home')) {
-      return { key: 'Housing', labelEn: 'Housing & Shelter', labelPa: 'ਰਿਹਾਇਸ਼ ਅਤੇ ਮਕਾਨ', labelHi: 'आवास एवं मकान' };
-    }
-    if (text.includes('ashirwad') || text.includes('shagun') || text.includes('woman') || text.includes('girl') || text.includes('daughter') || text.includes('maternity') || text.includes('mother')) {
-      return { key: 'Women & Family', labelEn: 'Women & Family Welfare', labelPa: 'ਮਹਿਲਾ ਅਤੇ ਪਰਿਵਾਰ ਭਲਾਈ', labelHi: 'महिला एवं परिवार कल्याण' };
-    }
-    return { key: 'Employment', labelEn: 'Employment & Enterprise', labelPa: 'ਰੋਜ਼ਗਾਰ ਅਤੇ ਕਾਰੋਬਾਰ', labelHi: 'रोजगार एवं उद्योग' };
+  const analytics = useMemo(
+    () => computeAnalyticsSummary(scopedSchemes, evaluations),
+    [scopedSchemes, evaluations]
+  );
+
+  const getLocalizedCategoryName = (item: CategoryAnalyticsRow) => {
+    if (currentLang === 'pa') return item.labelPa;
+    if (currentLang === 'hi') return item.labelHi;
+    return item.labelEn;
   };
 
-  // Group schemes by category
-  const categoryData: CategoryDataPoint[] = useMemo(() => {
-    const catMap = new Map<string, {
-      name: string;
-      namePa: string;
-      nameHi: string;
-      schemes: Scheme[];
-      eligibleSchemes: Scheme[];
-      color: string;
-      description: string;
-    }>();
-
-    const descriptions: Record<string, string> = {
-      'Agriculture': 'Direct income support, subsidized crop insurance, and mechanization for farmers',
-      'Health': 'Cashless hospitalization coverage up to ₹5 Lakh and state medical emergency grants',
-      'Education': 'Tuition reimbursement, maintenance allowances, and merit scholarships for students',
-      'Social Security': 'Monthly direct pensions for seniors, widows, and persons with disabilities',
-      'Housing': 'Subsidies and financial grants for pucca homes in rural and urban Punjab',
-      'Women & Family': 'Direct marriage financial aid (Ashirwad ₹51,000) and maternal protection',
-      'Employment': 'Collateral-free business credit (Mudra) and government self-employment drives'
-    };
-
-    schemes.forEach(scheme => {
-      const cat = getPrimaryCategory(scheme);
-      const isEligible = evaluationMap.get(scheme.id)?.isEligible || false;
-
-      if (!catMap.has(cat.key)) {
-        const colorIndex = catMap.size % CATEGORY_COLORS.length;
-        catMap.set(cat.key, {
-          name: cat.labelEn,
-          namePa: cat.labelPa,
-          nameHi: cat.labelHi,
-          schemes: [],
-          eligibleSchemes: [],
-          color: CATEGORY_COLORS[colorIndex],
-          description: descriptions[cat.key] || 'Welfare schemes under Punjab & Central Government'
-        });
-      }
-
-      const item = catMap.get(cat.key)!;
-      item.schemes.push(scheme);
-      if (isEligible) {
-        item.eligibleSchemes.push(scheme);
-      }
-    });
-
-    const result: CategoryDataPoint[] = [];
-    catMap.forEach((val) => {
-      const count = viewScope === 'eligible' ? val.eligibleSchemes.length : val.schemes.length;
-      if (count > 0 || viewScope === 'all') {
-        result.push({
-          name: val.name,
-          namePa: val.namePa,
-          nameHi: val.nameHi,
-          value: count,
-          color: val.color,
-          schemes: val.schemes,
-          eligibleSchemes: val.eligibleSchemes,
-          description: val.description
-        });
-      }
-    });
-
-    // Sort descending by count
-    return result.sort((a, b) => b.value - a.value);
-  }, [schemes, evaluationMap, viewScope]);
-
-  // Government Level Distribution (Central vs Punjab State)
-  const levelDistribution = useMemo(() => {
-    let centralCount = 0;
-    let stateCount = 0;
-
-    schemes.forEach(s => {
-      const isEligible = evaluationMap.get(s.id)?.isEligible;
-      const shouldInclude = viewScope === 'eligible' ? isEligible : true;
-
-      if (shouldInclude) {
-        if (s.level === 'Central Government') centralCount++;
-        else stateCount++;
-      }
-    });
-
-    return [
-      {
-        level: currentLang === 'pa' ? 'ਕੇਂਦਰ ਸਰਕਾਰ (Central)' : currentLang === 'hi' ? 'केंद्र सरकार (Central)' : 'Central Government',
-        count: centralCount,
-        fill: '#0f766e' // teal-700
-      },
-      {
-        level: currentLang === 'pa' ? 'ਪੰਜਾਬ ਸਰਕਾਰ (Punjab State)' : currentLang === 'hi' ? 'पंजाब सरकार (State)' : 'Punjab State Government',
-        count: stateCount,
-        fill: '#1d4ed8' // blue-700
-      }
-    ];
-  }, [schemes, evaluationMap, viewScope, currentLang]);
-
-  // Totals & KPI metrics
-  const totalEligibleCount = useMemo(() => {
-    return Array.from(evaluationMap.values()).filter(e => e.isEligible).length;
-  }, [evaluationMap]);
-
-  const totalPotentialsCount = useMemo(() => {
-    return Array.from(evaluationMap.values()).filter(e => e.isPotentialMatch).length;
-  }, [evaluationMap]);
-
-  const totalActiveChartCount = useMemo(() => {
-    return categoryData.reduce((acc, curr) => acc + curr.value, 0);
-  }, [categoryData]);
-
-  const sectorCoverageData = useMemo(() => {
-    const sectorMap = new Map<string, number>();
-    schemes.forEach((scheme) => {
-      const category = getPrimaryCategory(scheme).key;
-      const isEligible = evaluationMap.get(scheme.id)?.isEligible || false;
-      const normalizedKey =
-        category === 'Health' ? 'Healthcare'
-        : category === 'Education' ? 'Education'
-        : category === 'Social Security' ? 'Finance'
-        : category === 'Agriculture' ? 'Agriculture'
-        : category === 'Employment' ? 'Employment'
-        : category === 'Housing' ? 'Housing'
-        : 'Family';
-      if (isEligible) {
-        sectorMap.set(normalizedKey, (sectorMap.get(normalizedKey) ?? 0) + 1);
-      }
-    });
-
-    const sectors = [
-      { key: 'Education', label: 'Education' },
-      { key: 'Healthcare', label: 'Healthcare' },
-      { key: 'Finance', label: 'Finance' },
-      { key: 'Agriculture', label: 'Agriculture' },
-      { key: 'Employment', label: 'Employment' },
-      { key: 'Housing', label: 'Housing' },
-      { key: 'Family', label: 'Family' },
-    ];
-
-    return sectors.map((sector) => ({
-      sector: sector.label,
-      value: Math.min(100, (sectorMap.get(sector.key) ?? 0) * 25),
+  // Chart 1 data: Stacked / Grouped Bar Chart of Eligibility Counts by Category
+  const categoryBarData = useMemo(() => {
+    return analytics.categoryDistribution.map((row) => ({
+      key: row.key,
+      category:
+        currentLang === 'pa'
+          ? row.labelPa.split(' ')[0]
+          : currentLang === 'hi'
+          ? row.labelHi.split(' ')[0]
+          : row.key,
+      fullLabel: getLocalizedCategoryName(row),
+      Eligible: row.eligibleCount,
+      Potential: row.potentialCount,
+      Ineligible: row.ineligibleCount,
+      Total: row.totalCount,
+      color: row.color,
     }));
-  }, [schemes, evaluationMap]);
+  }, [analytics.categoryDistribution, currentLang]);
 
-  const onPieEnter = (_: unknown, index: number) => {
-    setActiveIndex(index);
-  };
+  // Chart 2 data: Donut Chart of Scheme Distribution by Category
+  const pieChartData = useMemo(() => {
+    return analytics.categoryDistribution
+      .map((row) => ({
+        ...row,
+        name: getLocalizedCategoryName(row),
+        value: viewScope === 'eligible' ? row.eligibleCount : row.totalCount,
+      }))
+      .filter((d) => d.value > 0);
+  }, [analytics.categoryDistribution, viewScope, currentLang]);
 
-  const getLocalizedCategoryName = (item: CategoryDataPoint) => {
-    if (currentLang === 'pa') return item.namePa;
-    if (currentLang === 'hi') return item.nameHi;
-    return item.name;
+  const totalPieCount = useMemo(
+    () => pieChartData.reduce((sum, item) => sum + item.value, 0),
+    [pieChartData]
+  );
+
+  // Chart 3 data: Radar Chart of Eligibility Coverage % by Category
+  const radarCoverageData = useMemo(() => {
+    return analytics.categoryDistribution.map((row) => {
+      const actionable = row.eligibleCount + row.potentialCount;
+      const coveragePct = row.totalCount > 0 ? Math.round((actionable / row.totalCount) * 100) : 0;
+      return {
+        sector: row.key,
+        eligibleCount: row.eligibleCount,
+        totalCount: row.totalCount,
+        coveragePct,
+      };
+    });
+  }, [analytics.categoryDistribution]);
+
+  const visibleCategoryRows = useMemo(() => {
+    if (selectedCategoryKey === 'ALL') return analytics.categoryDistribution;
+    return analytics.categoryDistribution.filter((r) => r.key === selectedCategoryKey);
+  }, [analytics.categoryDistribution, selectedCategoryKey]);
+
+  const handleResetAnalyticsFilters = () => {
+    setViewScope('all');
+    setLevelFilter('ALL');
+    setSelectedCategoryKey('ALL');
   };
 
   return (
-    <section className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-8">
-      {/* Header and Filter Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-50 text-teal-800 rounded-full text-xs font-bold border border-teal-200/70">
-            <PieIcon className="w-3.5 h-3.5 text-teal-600" />
+    <section
+      data-testid="scheme-analytics-view"
+      aria-label="Scheme Distribution and Profile Eligibility Analytics"
+      className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-8 space-y-8"
+    >
+      {/* Top Header & Active Profile Context */}
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5 border-b border-slate-200/80 dark:border-slate-800 pb-6">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-teal-700 dark:text-teal-400">
+            <BarChart3 className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
-              {currentLang === 'pa' 
-                ? 'ਡੈਸ਼ਬੋਰਡ ਅੰਕੜੇ ਅਤੇ ਵੰਡ' 
-                : currentLang === 'hi' 
-                ? 'डैशबोर्ड अंतर्दृष्टि एवं वितरण' 
-                : 'Dashboard Insights & Category Analytics'}
+              {currentLang === 'pa'
+                ? 'ਸਕੀਮ ਵਿਸ਼ਲੇਸ਼ਣ ਅਤੇ ਯੋਗਤਾ ਡੈਸ਼ਬੋਰਡ (Analytics)'
+                : currentLang === 'hi'
+                ? 'योजना विश्लेषण एवं पात्रता डैशबोर्ड (Analytics)'
+                : 'Scheme Distribution & Eligibility Analytics'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="text-slate-500 dark:text-slate-400 tabular-nums">
+              {analytics.totalSchemes}{' '}
+              {currentLang === 'pa' ? 'ਕੁੱਲ ਸਕੀਮਾਂ' : currentLang === 'hi' ? 'कुल योजनाएं' : 'Available Schemes'}
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white">
             {currentLang === 'pa'
-              ? 'ਯੋਗ ਯੋਜਨਾਵਾਂ ਦੀ ਸ਼੍ਰੇਣੀ ਵਾਰ ਵੰਡ'
+              ? 'ਸ਼੍ਰੇਣੀ ਅਨੁਸਾਰ ਸਕੀਮਾਂ ਦੀ ਵੰਡ ਅਤੇ ਤੁਹਾਡੀ ਪ੍ਰੋਫ਼ਾਈਲ ਯੋਗਤਾ ਅੰਕੜੇ'
               : currentLang === 'hi'
-              ? 'पात्र योजनाओं का श्रेणी-वार वितरण'
-              : 'Distribution of Eligible Welfare Schemes by Category'}
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 max-w-2xl">
+              ? 'श्रेणी-वार योजना वितरण और आपकी प्रोफ़ाइल पात्रता गणना'
+              : 'Scheme Distribution by Category & Profile Eligibility Counts'}
+          </h1>
+
+          <p className="text-sm text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed">
             {currentLang === 'pa'
-              ? `ਤੁਹਾਡੇ ਪ੍ਰੋਫਾਈਲ (${profile.occupation}, ਉਮਰ ${profile.age}, ${profile.district}) ਮੁਤਾਬਕ ਵੱਖ-ਵੱਖ ਖੇਤਰਾਂ ਵਿੱਚ ਉਪਲਬਧ ਸਰਕਾਰੀ ਯੋਜਨਾਵਾਂ ਦਾ ਰੀਅਲ-ਟਾਈਮ ਚਾਰਟ।`
+              ? `ਤੁਹਾਡੀ ਮੌਜੂਦਾ ਪ੍ਰੋਫ਼ਾਈਲ (${profile.occupation}, ਉਮਰ ${profile.age} ਸਾਲ, ਆਮਦਨ ₹${profile.annualIncome.toLocaleString('en-IN')}, ਸ਼੍ਰੇਣੀ ${profile.category}, ${profile.district}${profile.state ? `, ${profile.state}` : ''}) ਦੇ ਆਧਾਰ 'ਤੇ ਉਪਲਬਧ ਸਰਕਾਰੀ ਯੋਜਨਾਵਾਂ ਅਤੇ ਯੋਗਤਾ ਦੀ ਰੀਅਲ-ਟਾਈਮ ਵੰਡ।`
               : currentLang === 'hi'
-              ? `आपकी प्रोफ़ाइल (${profile.occupation}, आयु ${profile.age}, ${profile.district}) के अनुसार विभिन्न श्रेणियों में उपलब्ध सरकारी योजनाओं का वास्तविक समय दृश्य।`
-              : `Interactive Recharts visualization showcasing welfare distribution for ${profile.occupation} (Age ${profile.age}, ${profile.district}) across Agriculture, Health, Education, Pensions, and Social Welfare.`}
+              ? `आपकी वर्तमान प्रोफ़ाइल (${profile.occupation}, आयु ${profile.age} वर्ष, आय ₹${profile.annualIncome.toLocaleString('en-IN')}, श्रेणी ${profile.category}, ${profile.district}${profile.state ? `, ${profile.state}` : ''}) के आधार पर उपलब्ध सरकारी योजनाओं और पात्रता का वास्तविक समय विश्लेषण।`
+              : `Real-time visualization of available welfare schemes by category and eligibility counts tailored to your active profile (${profile.occupation} · Age ${profile.age} · ₹${profile.annualIncome.toLocaleString('en-IN')}/yr · ${profile.category} · ${profile.district}${profile.state ? `, ${profile.state}` : ''}).`}
           </p>
         </div>
 
-        {/* Scope Toggle: Eligible vs All Schemes */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl self-start md:self-center border border-slate-200 text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => setViewScope('eligible')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              viewScope === 'eligible'
-                ? 'bg-white text-teal-700 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+        {/* Scope & Level Filter Controls */}
+        <div className="flex flex-wrap items-center gap-2.5 self-start">
+          <div
+            role="group"
+            aria-label="Analytics chart scope"
+            className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100 p-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-800"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>
-              {currentLang === 'pa' ? 'ਸਿਰਫ਼ ਯੋਗ ਯੋਜਨਾਵਾਂ' : currentLang === 'hi' ? 'केवल पात्र योजनाएं' : 'Eligible Schemes'} ({totalEligibleCount})
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewScope('all')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              viewScope === 'all'
-                ? 'bg-white text-teal-700 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            <button
+              type="button"
+              data-testid="analytics-scope-all"
+              onClick={() => setViewScope('all')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition cursor-pointer whitespace-nowrap ${
+                viewScope === 'all'
+                  ? 'bg-white text-slate-950 shadow-2xs font-bold dark:bg-slate-900 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+              <span className="tabular-nums">
+                {currentLang === 'pa'
+                  ? `ਸਾਰੀਆਂ ਸਕੀਮਾਂ (${analytics.totalSchemes})`
+                  : currentLang === 'hi'
+                  ? `सभी योजनाएं (${analytics.totalSchemes})`
+                  : `All Available (${analytics.totalSchemes})`}
+              </span>
+            </button>
+            <button
+              type="button"
+              data-testid="analytics-scope-eligible"
+              onClick={() => setViewScope('eligible')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition cursor-pointer whitespace-nowrap ${
+                viewScope === 'eligible'
+                  ? 'bg-white text-teal-800 shadow-2xs font-bold dark:bg-slate-900 dark:text-teal-300'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+              }`}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <span className="tabular-nums">
+                {currentLang === 'pa'
+                  ? `ਸਿਰਫ਼ ਯੋਗ (${analytics.eligibleCount})`
+                  : currentLang === 'hi'
+                  ? `केवल पात्र (${analytics.eligibleCount})`
+                  : `Eligible Only (${analytics.eligibleCount})`}
+              </span>
+            </button>
+          </div>
+
+          <label className="sr-only" htmlFor="analytics-level-select">
+            Filter analytics by government level
+          </label>
+          <select
+            id="analytics-level-select"
+            data-testid="analytics-level-select"
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value as typeof levelFilter)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           >
-            <Layers className="w-3.5 h-3.5 text-slate-500" />
-            <span>
-              {currentLang === 'pa' ? 'ਸਾਰੀਆਂ 20 ਯੋਜਨਾਵਾਂ' : currentLang === 'hi' ? 'सभी 20 योजनाएं' : 'All 20 Schemes'}
-            </span>
-          </button>
+            <option value="ALL">All Levels (Central + All 36 States)</option>
+            <option value="Central Government">Central Government Only</option>
+            <option value="Punjab State">Punjab State Only</option>
+            <option value="Other States">Other Indian States & UTs</option>
+          </select>
+
+          {(viewScope !== 'all' || levelFilter !== 'ALL' || selectedCategoryKey !== 'ALL') && (
+            <button
+              type="button"
+              onClick={handleResetAnalyticsFilters}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer whitespace-nowrap"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* KPI Metrics Summary Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-gradient-to-br from-teal-50 to-emerald-50/60 p-4 rounded-2xl border border-teal-100">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-teal-700 mb-1 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
-            <span>{currentLang === 'pa' ? 'ਪੂਰੀ ਤਰ੍ਹਾਂ ਯੋਗ' : currentLang === 'hi' ? 'पूर्णतः पात्र' : 'Confirmed Eligible'}</span>
+      {/* Interactive Profile Bar for Live Eligibility Simulation */}
+      <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+            <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" aria-hidden="true" />
+            <span className="font-bold text-slate-900 dark:text-white">
+              {currentLang === 'pa'
+                ? 'ਮੌਜੂਦਾ ਪ੍ਰੋਫ਼ਾਈਲ ਕਿੱਤਾ (Occupation):'
+                : currentLang === 'hi'
+                ? 'वर्तमान प्रोफ़ाइल व्यवसाय (Occupation):'
+                : 'Current Profile Occupation:'}
+            </span>
+            <span>{profile.occupation}</span>
+            <span aria-hidden="true">·</span>
+            <span className="tabular-nums">Age {profile.age}</span>
+            <span aria-hidden="true">·</span>
+            <span className="tabular-nums">₹{profile.annualIncome.toLocaleString('en-IN')}/yr</span>
+            <span aria-hidden="true">·</span>
+            <span>{profile.category}</span>
+            <span aria-hidden="true">·</span>
+            <span>{profile.district}</span>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-teal-900">{totalEligibleCount}</div>
-          <div className="text-[11px] text-teal-700/80 mt-0.5">
-            {currentLang === 'pa' ? '100% ਸ਼ਰਤਾਂ ਪੂਰੀਆਂ' : currentLang === 'hi' ? '100% मानदंड पूर्ण' : 'Meets 100% criteria'}
-          </div>
+
+          {onOpenProfileWizard && (
+            <button
+              type="button"
+              onClick={onOpenProfileWizard}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300 cursor-pointer whitespace-nowrap"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>
+                {currentLang === 'pa'
+                  ? 'ਪੂਰੀ ਪ੍ਰੋਫ਼ਾਈਲ ਸੋਧੋ'
+                  : currentLang === 'hi'
+                  ? 'प्रोफ़ाइल संपादित करें'
+                  : 'Customize Full Profile'}
+              </span>
+            </button>
+          )}
         </div>
 
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 p-4 rounded-2xl border border-blue-100">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-blue-700 mb-1 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
-            <span>{currentLang === 'pa' ? 'ਸੰਭਾਵੀ ਮੈਚ' : currentLang === 'hi' ? 'संभावित मिलान' : 'Potential Match'}</span>
+        {onChangeOccupation && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Switch profile occupation to compare analytics">
+            {OCCUPATION_OPTIONS.map((occ) => {
+              const isSelected = profile.occupation === occ.id;
+              const label =
+                currentLang === 'pa' ? occ.labelPa : currentLang === 'hi' ? occ.labelHi : occ.labelEn;
+              return (
+                <button
+                  key={occ.id}
+                  type="button"
+                  data-testid={`analytics-occ-${occ.id.toLowerCase().replace(/\s+/g, '-')}`}
+                  onClick={() => onChangeOccupation(occ.id)}
+                  aria-pressed={isSelected}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-blue-700 text-white shadow-2xs'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-blue-900">{totalPotentialsCount}</div>
-          <div className="text-[11px] text-blue-700/80 mt-0.5">
-            {currentLang === 'pa' ? 'ਅੰਸ਼ਕ ਦਸਤਾਵੇਜ਼ ਲੋੜੀਂਦੇ' : currentLang === 'hi' ? 'दस्तावेज़ की आवश्यकता' : 'With minor criteria check'}
+        )}
+      </div>
+
+      {/* 4-Column KPI Metrics Summary Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div
+          data-testid="analytics-kpi-eligible"
+          className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span>
+              {currentLang === 'pa'
+                ? 'ਪੂਰੀ ਤਰ੍ਹਾਂ ਯੋਗ (Confirmed Eligible)'
+                : currentLang === 'hi'
+                ? 'पूर्णतः पात्र (Confirmed Eligible)'
+                : 'Confirmed Eligible Schemes'}
+            </span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
           </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+              {analytics.eligibleCount}
+            </span>
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">
+              ({analytics.eligibilityRatePercent}% of {analytics.totalSchemes})
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            100% profile criteria matched
+          </p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-50 to-violet-50/60 p-4 rounded-2xl border border-purple-100">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-purple-700 mb-1 flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5 text-purple-600" />
-            <span>{currentLang === 'pa' ? 'ਕੇਂਦਰ ਬਨਾਮ ਪੰਜਾਬ' : currentLang === 'hi' ? 'केंद्र vs पंजाब' : 'Central vs Punjab'}</span>
+        <div
+          data-testid="analytics-kpi-potential"
+          className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span>
+              {currentLang === 'pa'
+                ? 'ਸੰਭਾਵੀ ਮੈਚ (Potential Match)'
+                : currentLang === 'hi'
+                ? 'संभावित मिलान (Potential Match)'
+                : 'Potential Match Schemes'}
+            </span>
+            <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" aria-hidden="true" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-purple-900">
-            {levelDistribution[0].count} <span className="text-sm font-semibold text-purple-600">/</span> {levelDistribution[1].count}
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+              {analytics.potentialCount}
+            </span>
+            <span className="text-xs font-semibold text-blue-700 dark:text-blue-400 tabular-nums">
+              ({analytics.actionableRatePercent}% actionable)
+            </span>
           </div>
-          <div className="text-[11px] text-purple-700/80 mt-0.5">
-            {currentLang === 'pa' ? 'ਕੇਂਦਰ / ਸੂਬਾ ਯੋਜਨਾਵਾਂ' : currentLang === 'hi' ? 'केंद्रीय / राज्य योजनाएं' : 'Central / State initiatives'}
-          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Eligible with minor document / domicile check
+          </p>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 p-4 rounded-2xl border border-amber-100">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-amber-800 mb-1 flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>{currentLang === 'pa' ? 'ਸਭ ਤੋਂ ਵੱਡਾ ਖੇਤਰ' : currentLang === 'hi' ? 'शीर्ष श्रेणी' : 'Dominant Sector'}</span>
+        <div
+          data-testid="analytics-kpi-top-category"
+          className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span>
+              {currentLang === 'pa'
+                ? 'ਸਭ ਤੋਂ ਵੱਧ ਯੋਗ ਸ਼੍ਰੇਣੀ'
+                : currentLang === 'hi'
+                ? 'शीर्ष पात्र श्रेणी'
+                : 'Top Eligible Category'}
+            </span>
+            <PieIcon className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0" aria-hidden="true" />
           </div>
-          <div className="text-lg sm:text-xl font-black text-amber-950 truncate">
-            {categoryData.length > 0 ? getLocalizedCategoryName(categoryData[0]) : 'None'}
+          <div className="mt-2 truncate text-lg sm:text-xl font-bold text-slate-950 dark:text-white">
+            {analytics.topEligibleCategory
+              ? getLocalizedCategoryName(analytics.topEligibleCategory)
+              : 'None'}
           </div>
-          <div className="text-[11px] text-amber-800/80 mt-0.5">
-            {categoryData.length > 0 ? `${categoryData[0].value} ${currentLang === 'pa' ? 'ਯੋਜਨਾਵਾਂ ਉਪਲਬਧ' : 'Schemes available'}` : '-'}
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+            {analytics.topEligibleCategory
+              ? `${analytics.topEligibleCategory.eligibleCount} eligible · ${analytics.topEligibleCategory.totalCount} total in sector`
+              : '-'}
+          </p>
+        </div>
+
+        <div
+          data-testid="analytics-kpi-level-split"
+          className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span>
+              {currentLang === 'pa'
+                ? 'ਕੇਂਦਰ ਬਨਾਮ ਰਾਜ ਸਕੀਮਾਂ'
+                : currentLang === 'hi'
+                ? 'केंद्र बनाम राज्य योजनाएं'
+                : 'Central vs State Schemes'}
+            </span>
+            <Building2 className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" aria-hidden="true" />
           </div>
+          <div className="mt-2 flex items-baseline gap-2 tabular-nums">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-950 dark:text-white">
+              {analytics.levelDistribution.find((l) => l.levelKey === 'Central Government')?.totalCount ?? 0}
+            </span>
+            <span className="text-sm font-medium text-slate-400">/</span>
+            <span className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-blue-400">
+              {analytics.totalSchemes -
+                (analytics.levelDistribution.find((l) => l.levelKey === 'Central Government')?.totalCount ?? 0)}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Central Govt / State & UT Schemes
+          </p>
         </div>
       </div>
 
-      {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        <div className="lg:col-span-5 bg-slate-50/70 p-4 sm:p-6 rounded-2xl border border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-teal-600" />
-              <h3 className="font-extrabold text-slate-800 text-sm sm:text-base">
-                {currentLang === 'pa' ? 'ਖੇਤਰ-ਵਾਰ ਕਵਰੇਜ ਰੇਡਾਰ ਚਾਰਟ' : currentLang === 'hi' ? 'क्षेत्र-वार कवरेज रडार चार्ट' : 'Sector Coverage Radar Chart'}
-              </h3>
+      {/* Primary Charts Grid: Stacked Bar Chart (Eligibility by Category) + Category Distribution Donut */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        {/* Chart 1: Stacked Bar Chart of Eligibility Counts by Category (7 cols) */}
+        <div
+          data-testid="chart-category-eligibility-bars"
+          className="lg:col-span-7 flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-800/40"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                {currentLang === 'pa'
+                  ? 'ਸ਼੍ਰੇਣੀ ਅਨੁਸਾਰ ਯੋਗਤਾ ਗਿਣਤੀ (Eligibility Counts by Category)'
+                  : currentLang === 'hi'
+                  ? 'श्रेणी के अनुसार पात्रता संख्या (Eligibility Counts by Category)'
+                  : 'Eligibility Counts by Scheme Category'}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Confirmed Eligible vs. Potential Match vs. Not Eligible across all 7 welfare categories
+              </p>
             </div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">
+              {analytics.eligibleCount} Eligible · {analytics.potentialCount} Potential
+            </span>
           </div>
-          <div className="h-64 w-full">
+
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={sectorCoverageData}>
-                <PolarGrid stroke="#cbd5e1" strokeDasharray="3 3" />
-                <PolarAngleAxis dataKey="sector" tick={{ fill: '#334155', fontSize: 11 }} />
-                <PolarRadiusAxis domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 10 }} />
-                <Radar dataKey="value" stroke="#0f766e" fill="#2dd4bf" fillOpacity={0.55} />
-                <Tooltip />
-              </RadarChart>
+              <BarChart
+                data={categoryBarData}
+                margin={{ top: 10, right: 16, left: 0, bottom: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" opacity={0.5} />
+                <XAxis
+                  dataKey="category"
+                  tick={{ fontSize: 11, fill: '#475569', fontWeight: 600 }}
+                  interval={0}
+                  angle={-15}
+                  textAnchor="end"
+                  height={48}
+                />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#475569' }} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const row = payload[0].payload;
+                      return (
+                        <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs text-white shadow-xl space-y-1.5">
+                          <div className="font-bold text-sm text-white">{row.fullLabel}</div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 tabular-nums">
+                            <span className="text-emerald-400 font-semibold">Confirmed Eligible:</span>
+                            <span className="text-right font-bold">{row.Eligible}</span>
+                            <span className="text-blue-400 font-semibold">Potential Match:</span>
+                            <span className="text-right font-bold">{row.Potential}</span>
+                            <span className="text-slate-400">Not Eligible:</span>
+                            <span className="text-right font-bold">{row.Ineligible}</span>
+                            <span className="border-t border-slate-800 pt-1 text-slate-200 font-semibold">
+                              Total Available:
+                            </span>
+                            <span className="border-t border-slate-800 pt-1 text-right font-bold text-teal-300">
+                              {row.Total}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend
+                  verticalAlign="top"
+                  height={32}
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: '12px', fontWeight: 600 }}
+                />
+                <Bar
+                  dataKey="Eligible"
+                  name={currentLang === 'pa' ? 'ਯੋਗ (Eligible)' : currentLang === 'hi' ? 'पात्र (Eligible)' : 'Confirmed Eligible'}
+                  stackId="a"
+                  fill="#16a34a"
+                  radius={[0, 0, 0, 0]}
+                />
+                <Bar
+                  dataKey="Potential"
+                  name={currentLang === 'pa' ? 'ਸੰਭਾਵੀ (Potential)' : currentLang === 'hi' ? 'संभावित (Potential)' : 'Potential Match'}
+                  stackId="a"
+                  fill="#2563eb"
+                  radius={[0, 0, 0, 0]}
+                />
+                <Bar
+                  dataKey="Ineligible"
+                  name={currentLang === 'pa' ? 'ਅਯੋਗ (Not Eligible)' : currentLang === 'hi' ? 'अपात्र (Not Eligible)' : 'Not Eligible'}
+                  stackId="a"
+                  fill="#cbd5e1"
+                  radius={[6, 6, 0, 0]}
+                />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Left: Recharts Pie Chart (7 cols on lg) */}
-        <div className="lg:col-span-7 bg-slate-50/70 p-4 sm:p-6 rounded-2xl border border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-teal-600" />
-              <h3 className="font-extrabold text-slate-800 text-sm sm:text-base">
+        {/* Chart 2: Donut Chart of Scheme Distribution by Category (5 cols) */}
+        <div
+          data-testid="chart-category-distribution-pie"
+          className="lg:col-span-5 flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-800/40"
+        >
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
                 {currentLang === 'pa'
-                  ? 'ਸ਼੍ਰੇਣੀ ਅਨੁਪਾਤ ਪਾਈ ਚਾਰਟ (Pie Chart)'
+                  ? 'ਸ਼੍ਰੇਣੀ ਅਨੁਪਾਤ ਚਾਰਟ (Category Share)'
                   : currentLang === 'hi'
-                  ? 'श्रेणी अनुपात पाई चार्ट (Pie Chart)'
-                  : 'Category Distribution Pie Chart'}
-              </h3>
+                  ? 'श्रेणी अनुपात चार्ट (Category Share)'
+                  : 'Distribution by Category (Donut)'}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {viewScope === 'eligible'
+                  ? 'Share of confirmed eligible schemes per sector'
+                  : 'Share of all available schemes per sector'}
+              </p>
             </div>
-            <span className="text-xs font-semibold text-slate-500 bg-white px-2.5 py-0.5 rounded-md border border-slate-200">
-              {totalActiveChartCount} {currentLang === 'pa' ? 'ਕੁੱਲ' : 'Total'}
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
+              {totalPieCount} {viewScope === 'eligible' ? 'Eligible' : 'Total'}
             </span>
           </div>
 
-          {totalActiveChartCount > 0 ? (
-            <div className="h-72 sm:h-80 w-full relative">
+          {totalPieCount > 0 ? (
+            <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={categoryData}
+                    data={pieChartData}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={105}
-                    paddingAngle={3}
+                    cy="46%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={2.5}
                     dataKey="value"
-                    onMouseEnter={onPieEnter}
+                    onMouseEnter={(_, idx) => setActivePieIndex(idx)}
+                    onMouseLeave={() => setActivePieIndex(null)}
+                    onClick={(_, index) => {
+                      const clickedItem = pieChartData[index];
+                      if (clickedItem) {
+                        setSelectedCategoryKey((prev) =>
+                          prev === clickedItem.key ? 'ALL' : clickedItem.key
+                        );
+                      }
+                    }}
                     stroke="#ffffff"
                     strokeWidth={2}
                   >
-                    {categoryData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
+                    {pieChartData.map((entry, index) => (
+                      <Cell
+                        key={`pie-cell-${entry.key}`}
                         fill={entry.color}
-                        opacity={activeIndex === null || activeIndex === index ? 1 : 0.6}
+                        opacity={activePieIndex === null || activePieIndex === index ? 1 : 0.65}
+                        className="cursor-pointer"
                       />
                     ))}
                   </Pie>
                   <Tooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
-                        const data = payload[0].payload as CategoryDataPoint;
-                        const percentage = totalActiveChartCount > 0 
-                          ? Math.round((data.value / totalActiveChartCount) * 100) 
-                          : 0;
+                        const item = payload[0].payload as CategoryAnalyticsRow & { value: number };
+                        const pct = totalPieCount > 0 ? Math.round((item.value / totalPieCount) * 100) : 0;
                         return (
-                          <div className="bg-slate-900 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-800 space-y-1">
+                          <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs text-white shadow-xl space-y-1">
                             <div className="font-bold flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color }} />
-                              <span>{getLocalizedCategoryName(data)}</span>
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <span>{getLocalizedCategoryName(item)}</span>
                             </div>
-                            <div className="text-slate-300">
-                              <span className="font-extrabold text-teal-400 text-sm">{data.value}</span> {viewScope === 'eligible' ? 'eligible schemes' : 'total schemes'} ({percentage}%)
+                            <div className="text-slate-300 tabular-nums">
+                              <span className="font-bold text-teal-400 text-sm">{item.value}</span>{' '}
+                              {viewScope === 'eligible' ? 'eligible schemes' : 'available schemes'} ({pct}%)
                             </div>
-                            <div className="text-[10px] text-slate-400 max-w-[200px] leading-tight">
-                              {data.description}
+                            <div className="text-[11px] text-slate-400 tabular-nums">
+                              {item.eligibleCount} Eligible · {item.potentialCount} Potential · {item.ineligibleCount} Ineligible
                             </div>
                           </div>
                         );
@@ -470,165 +657,409 @@ export const DashboardInsights: React.FC<DashboardInsightsProps> = ({
                       return null;
                     }}
                   />
-                  <Legend 
-                    layout="horizontal" 
-                    verticalAlign="bottom" 
+                  <Legend
+                    layout="horizontal"
+                    verticalAlign="bottom"
                     align="center"
                     iconType="circle"
                     iconSize={8}
-                    formatter={(value) => {
-                      const item = categoryData.find(d => d.name === value);
-                      if (item) {
-                        return <span className="text-[11px] font-medium text-slate-700">{getLocalizedCategoryName(item)}</span>;
-                      }
-                      return <span className="text-[11px] font-medium text-slate-700">{value}</span>;
-                    }}
+                    formatter={(value) => (
+                      <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                        {value}
+                      </span>
+                    )}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-72 flex flex-col items-center justify-center text-center p-6 space-y-2">
-              <Info className="w-8 h-8 text-slate-400" />
-              <p className="text-xs text-slate-500 font-medium">
-                No schemes match the current citizen profile filters.
+            <div className="h-80 flex flex-col items-center justify-center text-center p-6 space-y-2">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                No schemes match the active filter combination.
               </p>
               <button
                 type="button"
-                onClick={() => setViewScope('all')}
-                className="text-xs font-bold text-teal-700 underline"
+                onClick={handleResetAnalyticsFilters}
+                className="text-xs font-bold text-blue-700 dark:text-blue-400 underline cursor-pointer"
               >
-                View all 20 schemes
+                Show all {analytics.totalSchemes} schemes
               </button>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Right: Bar Chart Breakdown by Government Level (5 cols on lg) */}
-        <div className="lg:col-span-5 bg-slate-50/70 p-4 sm:p-6 rounded-2xl border border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-blue-600" />
-              <h3 className="font-extrabold text-slate-800 text-sm sm:text-base">
-                {currentLang === 'pa' ? 'ਸਰਕਾਰੀ ਪੱਧਰ ਵੰਡ' : currentLang === 'hi' ? 'सरकारी स्तर वितरण' : 'Government Level Split'}
-              </h3>
-            </div>
-            <span className="text-[11px] text-slate-500 font-medium">
-              Central vs Punjab
-            </span>
+      {/* Secondary Charts Grid: Profile Eligibility Breakdown + Government Level Comparison + Radar */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        {/* Chart 3: Profile Eligibility Status Breakdown (4 cols) */}
+        <div
+          data-testid="chart-profile-eligibility-status"
+          className="lg:col-span-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-800/40 flex flex-col justify-between"
+        >
+          <div className="mb-4">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+              {currentLang === 'pa'
+                ? 'ਪ੍ਰੋਫ਼ਾਈਲ ਯੋਗਤਾ ਸਥਿਤੀ (Profile Eligibility Status)'
+                : currentLang === 'hi'
+                ? 'प्रोफ़ाइल पात्रता स्थिति (Profile Eligibility Status)'
+                : 'Profile Eligibility Status Summary'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Overall eligibility breakdown for {profile.occupation} ({profile.district})
+            </p>
           </div>
 
-          <div className="h-56 sm:h-64 w-full">
+          <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={levelDistribution} 
+              <BarChart
+                data={analytics.eligibilityStatusDistribution}
                 layout="vertical"
-                margin={{ top: 10, right: 25, left: 20, bottom: 5 }}
+                margin={{ top: 5, right: 24, left: 10, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis dataKey="level" type="category" width={90} tick={{ fontSize: 10, fontWeight: 600 }} />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#cbd5e1" opacity={0.5} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#475569' }} />
+                <YAxis
+                  dataKey="labelEn"
+                  type="category"
+                  width={115}
+                  tick={{ fontSize: 11, fontWeight: 600, fill: '#334155' }}
+                />
                 <Tooltip
-                  formatter={(val: any) => [`${val} Schemes`, 'Count']}
-                  contentStyle={{ backgroundColor: '#0f172a', borderRadius: '0.75rem', color: '#fff', fontSize: '11px', border: 'none' }}
+                  formatter={(val: unknown) => [`${val} Schemes`, 'Count']}
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderRadius: '0.75rem',
+                    color: '#fff',
+                    fontSize: '11px',
+                    border: 'none',
+                  }}
                 />
                 <Bar dataKey="count" radius={[0, 8, 8, 0]}>
-                  {levelDistribution.map((entry, idx) => (
-                    <Cell key={`bar-cell-${idx}`} fill={entry.fill} />
+                  {analytics.eligibilityStatusDistribution.map((entry) => (
+                    <Cell key={entry.id} fill={entry.color} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-teal-700" />
-              <span className="font-bold text-slate-800">10 Central Schemes</span>
+          <div className="mt-3 grid grid-cols-3 gap-2 pt-3 border-t border-slate-200/80 dark:border-slate-700 text-center tabular-nums">
+            {analytics.eligibilityStatusDistribution.map((slice) => (
+              <div key={slice.id} className="rounded-xl bg-white dark:bg-slate-900 p-2 border border-slate-200/70 dark:border-slate-800">
+                <div className="text-lg font-bold text-slate-950 dark:text-white">{slice.count}</div>
+                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  {slice.labelEn.replace('Confirmed ', '')} ({slice.percentage}%)
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Chart 4: Government Level Split (4 cols) */}
+        <div
+          data-testid="chart-government-level-split"
+          className="lg:col-span-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-800/40 flex flex-col justify-between"
+        >
+          <div className="mb-4">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+              {currentLang === 'pa'
+                ? 'ਸਰਕਾਰੀ ਪੱਧਰ ਵੰਡ (Central vs State)'
+                : currentLang === 'hi'
+                ? 'सरकारी स्तर वितरण (Central vs State)'
+                : 'Schemes by Government Level'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Eligible vs. Total schemes across Central & State Governments
+            </p>
+          </div>
+
+          <div className="h-52 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={analytics.levelDistribution}
+                margin={{ top: 5, right: 12, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" opacity={0.5} />
+                <XAxis dataKey="labelEn" tick={{ fontSize: 11, fontWeight: 600, fill: '#334155' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#475569' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderRadius: '0.75rem',
+                    color: '#fff',
+                    fontSize: '11px',
+                    border: 'none',
+                  }}
+                />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px' }} />
+                <Bar dataKey="eligibleCount" name="Confirmed Eligible" fill="#16a34a" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="totalCount" name="Total Available" fill="#2563eb" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 pt-3 border-t border-slate-200/80 dark:border-slate-700 tabular-nums">
+            <span>Central + 36 States/UTs Coverage</span>
+            <span className="font-bold text-slate-900 dark:text-white">
+              {analytics.totalSchemes} Verified Schemes
+            </span>
+          </div>
+        </div>
+
+        {/* Chart 5: Sector Actionable Coverage Radar Chart (4 cols) */}
+        <div
+          data-testid="chart-sector-radar"
+          className="lg:col-span-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-800/40 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                <span>
+                  {currentLang === 'pa'
+                    ? 'ਖੇਤਰ-ਵਾਰ ਕਵਰੇਜ ਰੇਡਾਰ'
+                    : currentLang === 'hi'
+                    ? 'क्षेत्र-वार कवरेज रडार'
+                    : 'Sector Match Rate Radar (%)'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Percentage of schemes in each sector matching your profile
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-700" />
-              <span className="font-bold text-slate-800">10 Punjab State Schemes</span>
-            </div>
+          </div>
+
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={radarCoverageData}>
+                <PolarGrid stroke="#cbd5e1" strokeDasharray="3 3" />
+                <PolarAngleAxis dataKey="sector" tick={{ fill: '#334155', fontSize: 10, fontWeight: 600 }} />
+                <PolarRadiusAxis domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} />
+                <Radar
+                  name="Match Coverage %"
+                  dataKey="coveragePct"
+                  stroke="#0f766e"
+                  fill="#14b8a6"
+                  fillOpacity={0.5}
+                />
+                <Tooltip
+                  formatter={(val: unknown) => [`${val}% Match Rate`, 'Coverage']}
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderRadius: '0.75rem',
+                    color: '#fff',
+                    fontSize: '11px',
+                    border: 'none',
+                  }}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Category Breakdown Cards Grid */}
+      {/* High-Density Category & Eligibility Quantitative Table */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
-            <span>{currentLang === 'pa' ? 'ਸ਼੍ਰੇਣੀ ਅਨੁਸਾਰ ਯੋਜਨਾਵਾਂ ਦੀ ਸੂਚੀ' : currentLang === 'hi' ? 'श्रेणी अनुसार योजनाओं की सूची' : 'Schemes by Welfare Category'}</span>
-            <span className="text-xs font-normal text-slate-500">
-              ({categoryData.length} active sectors)
-            </span>
-          </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              {currentLang === 'pa'
+                ? 'ਸ਼੍ਰੇਣੀ-ਵਾਰ ਯੋਗਤਾ ਅਤੇ ਸਕੀਮਾਂ ਦੀ ਸਾਰਣੀ'
+                : currentLang === 'hi'
+                ? 'श्रेणी-वार पात्रता और योजनाओं की तालिका'
+                : 'Category-Wise Scheme Distribution & Eligibility Matrix'}
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Click any category row to filter the scheme cards below or jump directly to matching schemes.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter category breakdown">
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryKey('ALL')}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                selectedCategoryKey === 'ALL'
+                  ? 'bg-slate-900 text-white dark:bg-blue-600'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+              }`}
+            >
+              All ({analytics.categoryDistribution.length})
+            </button>
+            {analytics.categoryDistribution.map((cat) => (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => setSelectedCategoryKey((prev) => (prev === cat.key ? 'ALL' : cat.key))}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                  selectedCategoryKey === cat.key
+                    ? 'bg-slate-900 text-white dark:bg-blue-600'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                }`}
+              >
+                {cat.key} ({cat.totalCount})
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {categoryData.map((item) => {
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+          <table
+            data-testid="analytics-category-table"
+            className="w-full text-left border-collapse text-xs sm:text-sm"
+          >
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/70 dark:text-slate-400">
+                <th className="py-3 pl-4 pr-3">Welfare Category</th>
+                <th className="px-3 py-3 text-right">Available Schemes</th>
+                <th className="px-3 py-3 text-right">Confirmed Eligible</th>
+                <th className="px-3 py-3 text-right">Potential Match</th>
+                <th className="px-3 py-3 text-right">Not Eligible</th>
+                <th className="px-3 py-3 text-right">Share of Total</th>
+                <th className="py-3 pl-3 pr-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800 bg-white dark:bg-slate-900 tabular-nums">
+              {visibleCategoryRows.map((row) => (
+                <tr
+                  key={row.key}
+                  className="hover:bg-slate-50/90 dark:hover:bg-slate-800/50 transition-colors"
+                >
+                  <td className="py-3 pl-4 pr-3 font-semibold text-slate-900 dark:text-white">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="h-3 w-3 rounded-sm shrink-0"
+                        style={{ backgroundColor: row.color }}
+                      />
+                      <div>
+                        <div>{getLocalizedCategoryName(row)}</div>
+                        <div className="text-[11px] font-normal text-slate-500 dark:text-slate-400 line-clamp-1">
+                          {row.description}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-right font-bold text-slate-900 dark:text-white">
+                    {row.totalCount}
+                  </td>
+                  <td className="px-3 py-3 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                    {row.eligibleCount}
+                  </td>
+                  <td className="px-3 py-3 text-right font-semibold text-blue-700 dark:text-blue-400">
+                    {row.potentialCount}
+                  </td>
+                  <td className="px-3 py-3 text-right text-slate-500 dark:text-slate-400">
+                    {row.ineligibleCount}
+                  </td>
+                  <td className="px-3 py-3 text-right font-medium text-slate-700 dark:text-slate-300">
+                    {row.shareOfTotalPercent}%
+                  </td>
+                  <td className="py-3 pl-3 pr-4 text-right">
+                    {onSelectCategory && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectCategory(row.key)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer whitespace-nowrap"
+                      >
+                        <span>Explore</span>
+                        <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Category Scheme Drilldown Cards */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
+            {currentLang === 'pa'
+              ? 'ਸ਼੍ਰੇਣੀ ਅਨੁਸਾਰ ਯੋਜਨਾਵਾਂ ਦੀ ਸੂਚੀ'
+              : currentLang === 'hi'
+              ? 'श्रेणी अनुसार योजनाओं की सूची'
+              : 'Schemes by Category & Eligibility Drilldown'}
+          </h3>
+          <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+            Showing {visibleCategoryRows.length} {visibleCategoryRows.length === 1 ? 'category' : 'categories'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {visibleCategoryRows.map((item) => {
             const displaySchemes = viewScope === 'eligible' ? item.eligibleSchemes : item.schemes;
 
             return (
-              <div 
-                key={item.name}
-                className="p-4 rounded-2xl border border-slate-200 hover:border-teal-300 transition-all bg-white hover:shadow-xs group space-y-3 flex flex-col justify-between"
+              <div
+                key={item.key}
+                className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between space-y-3"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                      <h4 className="font-extrabold text-sm text-slate-900 group-hover:text-teal-700 transition-colors">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-3 h-3 rounded-sm shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
                         {getLocalizedCategoryName(item)}
                       </h4>
                     </div>
-                    <span 
-                      className="text-xs font-extrabold px-2 py-0.5 rounded-md text-white"
-                      style={{ backgroundColor: item.color }}
-                    >
-                      {item.value}
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 tabular-nums shrink-0">
+                      {item.eligibleCount} Eligible / {item.totalCount} Total
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                     {item.description}
                   </p>
                 </div>
 
-                {/* Sub-list of schemes in this category */}
-                <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    {viewScope === 'eligible' ? 'Matching Schemes' : 'Available Schemes'}:
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    {viewScope === 'eligible' ? 'Confirmed Eligible Schemes:' : 'Top Schemes in Category:'}
                   </div>
-                  <div className="space-y-1">
-                    {displaySchemes.slice(0, 3).map(sch => {
-                      const evalMatch = evaluationMap.get(sch.id);
-                      return (
-                        <div 
-                          key={sch.id}
-                          onClick={() => onOpenScheme && onOpenScheme(sch)}
-                          className="flex items-center justify-between text-xs p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-slate-700 hover:text-teal-700 transition-colors"
-                        >
-                          <span className="truncate pr-2 font-medium">{sch.titleEn}</span>
-                          {evalMatch && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
-                              evalMatch.isEligible 
-                                ? 'bg-emerald-100 text-emerald-800' 
-                                : evalMatch.isPotentialMatch 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {evalMatch.matchPercentage}%
-                            </span>
-                          )}
+                  {displaySchemes.length > 0 ? (
+                    <div className="space-y-1">
+                      {displaySchemes.slice(0, 4).map((sch) => {
+                        const evalMatch = evaluationMap.get(sch.id);
+                        return (
+                          <button
+                            key={sch.id}
+                            type="button"
+                            onClick={() => onOpenScheme && onOpenScheme(sch)}
+                            className="w-full flex items-center justify-between text-left text-xs p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-400 transition-colors"
+                          >
+                            <span className="truncate pr-2 font-medium">{sch.titleEn}</span>
+                            {evalMatch && (
+                              <span
+                                className={`text-[11px] font-bold tabular-nums shrink-0 ${
+                                  evalMatch.isEligible
+                                    ? 'text-emerald-700 dark:text-emerald-400'
+                                    : evalMatch.isPotentialMatch
+                                    ? 'text-blue-700 dark:text-blue-400'
+                                    : 'text-slate-400'
+                                }`}
+                              >
+                                {evalMatch.matchPercentage}%
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      {displaySchemes.length > 4 && (
+                        <div className="text-[11px] text-slate-400 text-right pt-0.5 tabular-nums">
+                          +{displaySchemes.length - 4} more schemes
                         </div>
-                      );
-                    })}
-                    {displaySchemes.length > 3 && (
-                      <div className="text-[10px] text-slate-400 italic text-right pt-0.5">
-                        +{displaySchemes.length - 3} more schemes
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 py-2">
+                      No confirmed eligible schemes in this category for current profile.
+                    </p>
+                  )}
                 </div>
               </div>
             );

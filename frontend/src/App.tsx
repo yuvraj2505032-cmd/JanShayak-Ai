@@ -33,32 +33,38 @@ import {
 } from './utils/advancedSchemeFilter';
 import { setOfflineRecentlyViewed } from './utils/offlineCache';
 
-// Components
+// Components (eagerly imported so 100% of tabs and modals work offline without network chunk errors)
 import { HeroBanner } from './components/HeroBanner';
 import { SchemeCard } from './components/SchemeCard';
 import { FraudProtectionBanner } from './components/FraudProtectionBanner';
 import type { AiAdminLogEntry } from './components/AdminConsole';
-const Navbar = React.lazy(() => import('./components/Navbar').then(module => ({ default: module.Navbar })));
-const SmartDashboardHub = React.lazy(() => import('./components/SmartDashboardHub').then(module => ({ default: module.SmartDashboardHub })));
-const ProfileWizard = React.lazy(() => import('./components/ProfileWizard').then(module => ({ default: module.ProfileWizard })));
-const ChatbotDrawer = React.lazy(() => import('./components/ChatbotDrawer').then(module => ({ default: module.ChatbotDrawer })));
-const WhatIfSimulator = React.lazy(() => import('./components/WhatIfSimulator').then(module => ({ default: module.WhatIfSimulator })));
-const DocumentCenter = React.lazy(() => import('./components/DocumentCenter').then(module => ({ default: module.DocumentCenter })));
-const SchemeDetailModal = React.lazy(() => import('./components/SchemeDetailModal').then(module => ({ default: module.SchemeDetailModal })));
-const FamilyBenefitFinder = React.lazy(() => import('./components/FamilyBenefitFinder').then(module => ({ default: module.FamilyBenefitFinder })));
-const DistrictPortalFinder = React.lazy(() => import('./components/DistrictPortalFinder').then(module => ({ default: module.DistrictPortalFinder })));
-const ApplicationTracker = React.lazy(() => import('./components/ApplicationTracker').then(module => ({ default: module.ApplicationTracker })));
-const VideoGuidesHub = React.lazy(() => import('./components/VideoGuidesHub').then(module => ({ default: module.VideoGuidesHub })));
-const DocumentScannerModal = React.lazy(() => import('./components/DocumentScannerModal').then(module => ({ default: module.DocumentScannerModal })));
-const DeadlineReminderHub = React.lazy(() => import('./components/DeadlineReminderHub').then(module => ({ default: module.DeadlineReminderHub })));
-const CyberFraudShieldModal = React.lazy(() => import('./components/CyberFraudShieldModal').then(module => ({ default: module.CyberFraudShieldModal })));
-const DashboardInsights = React.lazy(() => import('./components/DashboardInsights').then(module => ({ default: module.DashboardInsights })));
-const ViewAllDocumentsModal = React.lazy(() => import('./components/ViewAllDocumentsModal').then(module => ({ default: module.ViewAllDocumentsModal })));
-const AiSchemeAdvisorModal = React.lazy(() => import('./components/AiSchemeAdvisorModal').then(module => ({ default: module.AiSchemeAdvisorModal })));
-const AiProfileRoadmapModal = React.lazy(() => import('./components/AiProfileRoadmapModal').then(module => ({ default: module.AiProfileRoadmapModal })));
-const AdminConsole = React.lazy(() => import('./components/AdminConsole').then(module => ({ default: module.AdminConsole })));
-const SavedDeadlineBanner = React.lazy(() => import('./components/SavedDeadlineBanner').then(module => ({ default: module.SavedDeadlineBanner })));
+import { Navbar } from './components/Navbar';
+import { SmartDashboardHub } from './components/SmartDashboardHub';
+import { ProfileWizard } from './components/ProfileWizard';
+import { ChatbotDrawer } from './components/ChatbotDrawer';
+import { WhatIfSimulator } from './components/WhatIfSimulator';
+import { DocumentCenter } from './components/DocumentCenter';
+import { SchemeDetailModal } from './components/SchemeDetailModal';
+import { FamilyBenefitFinder } from './components/FamilyBenefitFinder';
+import { DistrictPortalFinder } from './components/DistrictPortalFinder';
+import { ApplicationTracker } from './components/ApplicationTracker';
+import { VideoGuidesHub } from './components/VideoGuidesHub';
+import { DocumentScannerModal } from './components/DocumentScannerModal';
+import { DeadlineReminderHub } from './components/DeadlineReminderHub';
+import { CyberFraudShieldModal } from './components/CyberFraudShieldModal';
+import { DashboardInsights } from './components/DashboardInsights';
+import { ViewAllDocumentsModal } from './components/ViewAllDocumentsModal';
+import { AiSchemeAdvisorModal } from './components/AiSchemeAdvisorModal';
+import { AiProfileRoadmapModal } from './components/AiProfileRoadmapModal';
+import { AdminConsole } from './components/AdminConsole';
+import { SavedDeadlineBanner } from './components/SavedDeadlineBanner';
+import { OfflineIndicator } from './components/PWAInstallButton';
 import { DEFAULT_OFFICIAL_PORTALS, AI_DISCOVERABLE_SCHEMES_POOL } from './data/officialPortals';
+import { ALL_STATES_SCHEMES_POOL, generateAutonomousAiSchemeBundle, INDIA_STATES_AND_UTS, getDistrictsForState } from './data/indiaStatesAndDistricts';
+import {
+  buildDynamicEligibilityPreset,
+  resolveLocationFromInputOrCoords,
+} from './utils/cyberFraudScanner';
 import { supabase, supabaseConfigurationError } from './lib/supabase';
 import { apiUrl } from './lib/apiUrl';
 import { loadCitizenCloudData, parseCitizenProfile, parseSavedSchemeIds, parseTrackedItems, saveCitizenCloudData } from './lib/citizenCloudSync';
@@ -77,6 +83,7 @@ import type { LocalAccount } from './lib/localAuth';
 
 import { 
   ShieldCheck,
+  ShieldAlert,
   SearchX,
   Bookmark,
   Trash2,
@@ -85,7 +92,9 @@ import {
   ArrowLeft,
   Bot,
   GraduationCap,
-  Sparkles
+  Sparkles,
+  MapPin,
+  Navigation
 } from 'lucide-react';
 
 const DEFAULT_PROFILE: CitizenProfile = {
@@ -197,7 +206,7 @@ export default function App() {
   const [profile, setProfile] = useState<CitizenProfile>(() => loadStoredProfile('janshayak_profile') ?? DEFAULT_PROFILE);
   const [managedSites, setManagedSites] = useState<ManagedOfficialSite[]>(() => {
     try {
-      const saved = localStorage.getItem('janshayak_official_portals_v3');
+      const saved = localStorage.getItem('janshayak_official_portals_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -207,12 +216,13 @@ export default function App() {
     }
     return [
       ...AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.portal),
+      ...ALL_STATES_SCHEMES_POOL.map((b) => b.portal),
       ...DEFAULT_OFFICIAL_PORTALS,
     ];
   });
   const [aiAddedSchemes, setAiAddedSchemes] = useState<Scheme[]>(() => {
     try {
-      const saved = localStorage.getItem('janshayak_ai_admin_schemes_v3');
+      const saved = localStorage.getItem('janshayak_ai_admin_schemes_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -220,8 +230,11 @@ export default function App() {
     } catch (e) {
       console.warn('Could not load AI admin schemes:', e);
     }
-    // Automatically seed both New (2025-26) AND Purani (Classic) schemes discovered by AI
-    return AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.scheme);
+    // Automatically seed New (2025-26), Purani (Classic), AND All 36 Indian States/UTs flagship schemes
+    return [
+      ...AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.scheme),
+      ...ALL_STATES_SCHEMES_POOL.map((b) => b.scheme),
+    ];
   });
   const [isAiAutoSyncEnabled, setIsAiAutoSyncEnabled] = useState<boolean>(true);
   const [isAiDiscovering, setIsAiDiscovering] = useState<boolean>(false);
@@ -537,7 +550,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('janshayak_official_portals_v3', JSON.stringify(managedSites));
+      localStorage.setItem('janshayak_official_portals_v4', JSON.stringify(managedSites));
     } catch (e) {
       console.warn('Could not save official portals to localStorage:', e);
     }
@@ -545,7 +558,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('janshayak_ai_admin_schemes_v3', JSON.stringify(aiAddedSchemes));
+      localStorage.setItem('janshayak_ai_admin_schemes_v4', JSON.stringify(aiAddedSchemes));
     } catch (e) {
       console.warn('Could not save AI admin schemes to localStorage:', e);
     }
@@ -586,7 +599,7 @@ export default function App() {
       let chosenScheme: Scheme | null = null;
       let chosenPortal: ManagedOfficialSite | null = null;
 
-      if (customTopic) {
+      if (customTopic && (typeof navigator === 'undefined' || navigator.onLine)) {
         try {
           const resp = await fetch(apiUrl('/api/ai/admin-discover'), {
             method: 'POST',
@@ -606,26 +619,29 @@ export default function App() {
       }
 
       if (!chosenScheme || !chosenPortal) {
-        const existingIds = new Set(aiAddedSchemes.map(s => s.id));
-        const nextFromPool = AI_DISCOVERABLE_SCHEMES_POOL.find(item => !existingIds.has(item.scheme.id));
-        if (nextFromPool) {
+        const existingIds = new Set([...GOV_SCHEMES.map(s => s.id), ...aiAddedSchemes.map(s => s.id)]);
+        const combinedPool = [...AI_DISCOVERABLE_SCHEMES_POOL, ...ALL_STATES_SCHEMES_POOL];
+        const nextFromPool = combinedPool.find(item => !existingIds.has(item.scheme.id));
+        if (nextFromPool && !customTopic) {
           chosenScheme = nextFromPool.scheme;
           chosenPortal = nextFromPool.portal;
         } else if (customTopic) {
           const slug = customTopic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 28) || 'welfare';
           const stamp = Date.now().toString().slice(-4);
           const isStudentTopic = /student|scholar|laptop|college|school|education|ਵਿਦਿਆਰਥੀ/i.test(customTopic);
+          const targetState = profile.state || 'Punjab';
           chosenScheme = {
             id: `ai-${slug}-${stamp}`,
-            titleEn: `Punjab & Central ${customTopic} Welfare Initiative`,
-            titlePa: `ਪੰਜਾਬ ਅਤੇ ਕੇਂਦਰ ${customTopic} ਭਲਾਈ ਯੋਜਨਾ`,
-            titleHi: `पंजाब एवं केंद्र ${customTopic} कल्याण योजना`,
-            level: 'Punjab State',
-            departmentEn: isStudentTopic ? 'Department of Higher Education & Languages, Punjab' : 'Department of Social Justice & Citizen Welfare, Punjab',
-            departmentPa: isStudentTopic ? 'ਉਚੇਰੀ ਸਿੱਖਿਆ ਵਿਭਾਗ, ਪੰਜਾਬ' : 'ਸਮਾਜਿਕ ਨਿਆਂ ਅਤੇ ਭਲਾਈ ਵਿਭਾਗ, ਪੰਜਾਬ',
-            departmentHi: isStudentTopic ? 'उच्च शिक्षा विभाग, पंजाब' : 'सामाजिक न्याय एवं कल्याण विभाग, पंजाब',
-            categoryTags: isStudentTopic ? ['Students', 'Education', 'Scholarship', 'AI Admin Added'] : ['Social Security', 'Subsidy', 'Finance', 'AI Admin Added'],
-            descriptionEn: `Official AI-indexed government welfare scheme providing direct benefit assistance and digital portal registration for ${customTopic}.`,
+            titleEn: `${targetState} & Central ${customTopic} Welfare Initiative`,
+            titlePa: `${targetState} ਅਤੇ ਕੇਂਦਰ ${customTopic} ਭਲਾਈ ਯੋਜਨਾ`,
+            titleHi: `${targetState} एवं केंद्र ${customTopic} कल्याण योजना`,
+            level: targetState === 'Punjab' ? 'Punjab State' : `${targetState} State`,
+            state: targetState,
+            departmentEn: isStudentTopic ? `Department of Higher Education, ${targetState}` : `Department of Social Justice & Citizen Welfare, ${targetState}`,
+            departmentPa: isStudentTopic ? `ਉਚੇਰੀ ਸਿੱਖਿਆ ਵਿਭਾਗ, ${targetState}` : `ਸਮਾਜਿਕ ਨਿਆਂ ਅਤੇ ਭਲਾਈ ਵਿਭਾਗ, ${targetState}`,
+            departmentHi: isStudentTopic ? `उच्च शिक्षा विभाग, ${targetState}` : `सामाजिक न्याय एवं कल्याण विभाग, ${targetState}`,
+            categoryTags: isStudentTopic ? [targetState, 'Students', 'Education', 'Scholarship', 'New Scheme 2026', 'AI Admin Added'] : [targetState, 'Social Security', 'Subsidy', 'Finance', 'New Scheme 2026', 'AI Admin Added'],
+            descriptionEn: `Official AI-indexed government welfare scheme providing direct benefit assistance and digital portal registration for ${customTopic} in ${targetState}.`,
             descriptionPa: `${customTopic} ਲਈ ਸਿੱਧੀ ਸਰਕਾਰੀ ਸਹਾਇਤਾ ਅਤੇ ਆਨਲਾਈਨ ਪੋਰਟਲ ਸਹੂਲਤ।`,
             descriptionHi: `${customTopic} के लिए प्रत्यक्ष सरकारी सहायता और ऑनलाइन पोर्टल सुविधा।`,
             benefitAmountText: isStudentTopic ? '₹25,000 / year Direct Student Grant' : '₹20,000 Direct Benefit Assistance',
@@ -633,20 +649,20 @@ export default function App() {
             minAge: isStudentTopic ? 15 : 18,
             maxAge: isStudentTopic ? 32 : 65,
             eligibleOccupations: isStudentTopic ? ['Student', 'Unemployed Youth'] : ['Student', 'Farmer', 'Daily Wage Worker', 'Self-Employed', 'Unemployed Youth'],
-            requiresPunjabDomicile: true,
+            requiresPunjabDomicile: targetState === 'Punjab',
             maxIncome: 400000,
             applicationDeadline: 'Open on Official Portal (2026-27)',
             deadlineType: 'Ongoing',
-            officialPortalUrl: isStudentTopic ? 'https://scholarships.punjab.gov.in' : 'https://connect.punjab.gov.in',
-            officialPortalName: isStudentTopic ? 'Punjab Scholarship Portal' : 'Connect Punjab Official Portal',
+            officialPortalUrl: isStudentTopic ? 'https://scholarships.gov.in' : 'https://www.myscheme.gov.in',
+            officialPortalName: isStudentTopic ? 'National & State Scholarship Portal' : 'Official e-Governance Portal',
             requiredDocuments: [
               { nameEn: 'Aadhaar Card linked with Mobile', namePa: 'ਮੋਬਾਈਲ ਨਾਲ ਲਿੰਕ ਆਧਾਰ ਕਾਰਡ', nameHi: 'आधार कार्ड', issuingAuthority: 'UIDAI', availableOnDigiLocker: true },
-              { nameEn: 'Punjab Residence / Domicile Certificate', namePa: 'ਪੰਜਾਬ ਰਿਹਾਇਸ਼ ਸਰਟੀਫਿਕੇਟ', nameHi: 'पंजाब निवास प्रमाण पत्र', issuingAuthority: 'Sewa Kendra', availableOnDigiLocker: true }
+              { nameEn: `${targetState} Residence / Domicile Certificate`, namePa: `${targetState} ਰਿਹਾਇਸ਼ ਸਰਟੀਫਿਕੇਟ`, nameHi: `${targetState} निवास प्रमाण पत्र`, issuingAuthority: 'e-District / Sewa Kendra', availableOnDigiLocker: true }
             ],
             applicationSteps: [
               {
                 stepNumber: 1,
-                titleEn: 'Apply Online on Official Portal or Sewa Kendra',
+                titleEn: 'Apply Online on Official Portal or e-Seva Kendra',
                 titlePa: 'ਅਧਿਕਾਰਤ ਪੋਰਟਲ ਜਾਂ ਸੇਵਾ ਕੇਂਦਰ ਰਾਹੀਂ ਅਪਲਾਈ ਕਰੋ',
                 titleHi: 'आधिकारिक पोर्टल या सेवा केंद्र से आवेदन करें',
                 descriptionEn: 'Submit Aadhaar e-KYC and bank details free of cost.',
@@ -660,11 +676,16 @@ export default function App() {
           chosenPortal = {
             id: `portal-ai-${slug}-${stamp}`,
             title: `${customTopic} Official Government Portal`,
-            url: isStudentTopic ? 'https://scholarships.punjab.gov.in' : 'https://connect.punjab.gov.in',
+            url: isStudentTopic ? 'https://scholarships.gov.in' : 'https://www.myscheme.gov.in',
             description: `Direct official portal link added by Janshayak AI Admin for ${customTopic}.`,
             category: isStudentTopic ? 'Students & Education' : 'Citizen e-Services',
             createdAt: new Date().toISOString()
           };
+        } else {
+          // Autonomous pan-India synthesizer: continuously generates new State & Central schemes both Online & Offline
+          const autoBundle = generateAutonomousAiSchemeBundle(existingIds, aiAddedSchemes.length);
+          chosenScheme = autoBundle.scheme;
+          chosenPortal = autoBundle.portal;
         }
       }
 
@@ -709,16 +730,20 @@ export default function App() {
   };
 
   const handleSyncAllAiSchemes = () => {
+    const combinedBundles = [...AI_DISCOVERABLE_SCHEMES_POOL, ...ALL_STATES_SCHEMES_POOL];
     setAiAddedSchemes((prev) => {
       const existingIds = new Set(prev.map((s) => s.id));
-      const missingSchemes = AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.scheme).filter(
+      const missingSchemes = combinedBundles.map((b) => b.scheme).filter(
         (s) => !existingIds.has(s.id)
       );
-      return [...missingSchemes, ...prev];
+      const nextList = [...missingSchemes, ...prev];
+      const nextIds = new Set([...GOV_SCHEMES.map((s) => s.id), ...nextList.map((s) => s.id)]);
+      const bonusBundle = generateAutonomousAiSchemeBundle(nextIds, nextList.length);
+      return [bonusBundle.scheme, ...nextList.filter((s) => s.id !== bonusBundle.scheme.id)];
     });
     setManagedSites((prev) => {
       const existingIds = new Set(prev.map((p) => p.id));
-      const missingPortals = AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.portal).filter(
+      const missingPortals = combinedBundles.map((b) => b.portal).filter(
         (p) => !existingIds.has(p.id)
       );
       return [...missingPortals, ...prev];
@@ -727,27 +752,23 @@ export default function App() {
       {
         id: `log-sync-all-${Date.now()}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        schemeTitle: `Synced All ${AI_DISCOVERABLE_SCHEMES_POOL.length} New (2026) & Purani (Classic) Schemes`,
-        portalTitle: 'Official Punjab & India Portals (.gov.in)',
-        portalUrl: 'https://punjab.gov.in',
+        schemeTitle: `Synced All ${combinedBundles.length}+ All-India 36 States/UTs, New (2026) & Purani Schemes`,
+        portalTitle: 'Official All-India & State Portals (.gov.in)',
+        portalUrl: 'https://www.myscheme.gov.in',
         mode: 'AI On-Demand',
       },
       ...prev,
     ]);
   };
 
-  // Time-based autonomous AI Admin background sync (adds unadded New & Purani schemes & links automatically over time)
+  // Continuous autonomous AI Admin background sync (discovers & adds new State/Central schemes automatically over time in both Online & Offline modes)
   useEffect(() => {
     if (!isAiAutoSyncEnabled) return;
     const interval = window.setInterval(() => {
-      const existingIds = new Set(aiAddedSchemes.map(s => s.id));
-      const hasRemaining = AI_DISCOVERABLE_SCHEMES_POOL.some(item => !existingIds.has(item.scheme.id));
-      if (hasRemaining) {
-        void handleTriggerAiDiscovery(undefined, 'Auto-Scheduled');
-      }
-    }, 15000);
+      void handleTriggerAiDiscovery(undefined, 'Auto-Scheduled');
+    }, 12000);
     return () => window.clearInterval(interval);
-  }, [isAiAutoSyncEnabled, aiAddedSchemes]);
+  }, [isAiAutoSyncEnabled, aiAddedSchemes.length]);
 
   const handleSignIn = async (email: string, password: string, importLocalData: boolean) => {
     if (!supabase) return { error: supabaseConfigurationError || 'Supabase is not configured.' };
@@ -935,20 +956,81 @@ export default function App() {
     setSavedSchemeIds(new Set());
   };
 
-  const handleQuickOccupationSelect = (occ: CitizenProfile['occupation']) => {
+  const [locationDraft, setLocationDraft] = useState<string>(() => profile.customLocation || '');
+  const [locationStatusMsg, setLocationStatusMsg] = useState<string>('');
+
+  const handleQuickOccupationSelect = (selection: CitizenProfile['occupation'] | string) => {
     setProfile(prev => {
-      const next: CitizenProfile = {
+      const preset = buildDynamicEligibilityPreset(selection, prev);
+      return {
         ...prev,
-        occupation: occ,
-        isEnrolledInSchoolOrCollege: occ === 'Student' ? true : prev.isEnrolledInSchoolOrCollege
+        ...preset.profilePatch,
       };
-      if (occ === 'Student' && prev.age > 30) {
-        next.age = 20;
-      } else if (occ === 'Senior Citizen' && prev.age < 60) {
-        next.age = 65;
-      }
-      return next;
     });
+  };
+
+  const handleApplyCustomLocation = (rawText: string) => {
+    const trimmed = rawText.trim();
+    const resolved = resolveLocationFromInputOrCoords({
+      rawLocationText: trimmed,
+      currentState: profile.state || 'Punjab',
+      currentDistrict: profile.district,
+    });
+    setProfile(prev => ({
+      ...prev,
+      state: resolved.state,
+      district: resolved.district,
+      customLocation: resolved.customLocation || trimmed,
+      pincode: resolved.pincode || prev.pincode,
+      isPunjabDomicile: resolved.state === 'Punjab',
+    }));
+    setLocationDraft(resolved.customLocation || trimmed);
+    setLocationStatusMsg(
+      `Location set: ${resolved.customLocation ? `${resolved.customLocation} · ` : ''}${resolved.district}, ${resolved.state}${resolved.pincode ? ` (PIN ${resolved.pincode})` : ''}`
+    );
+  };
+
+  const handleDetectGpsLocation = () => {
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      setLocationStatusMsg('Detecting GPS coordinates...');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const resolved = resolveLocationFromInputOrCoords({
+            rawLocationText: locationDraft,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            currentState: profile.state || 'Punjab',
+            currentDistrict: profile.district,
+          });
+          setProfile(prev => ({
+            ...prev,
+            state: resolved.state,
+            district: resolved.district,
+            customLocation: resolved.customLocation,
+            isPunjabDomicile: resolved.state === 'Punjab',
+          }));
+          setLocationDraft(resolved.customLocation);
+          setLocationStatusMsg(`GPS matched: ${resolved.district}, ${resolved.state}`);
+        },
+        () => {
+          const fallback = resolveLocationFromInputOrCoords({
+            rawLocationText: locationDraft || `${profile.district}, ${profile.state || 'Punjab'}`,
+            currentState: profile.state || 'Punjab',
+            currentDistrict: profile.district,
+          });
+          setProfile(prev => ({
+            ...prev,
+            state: fallback.state,
+            district: fallback.district,
+            customLocation: fallback.customLocation,
+          }));
+          setLocationStatusMsg(`Active location: ${fallback.district}, ${fallback.state}`);
+        },
+        { timeout: 4000 }
+      );
+    } else {
+      handleApplyCustomLocation(locationDraft || `${profile.district}, ${profile.state || 'Punjab'}`);
+    }
   };
 
   const [adminKnowledgeState, setAdminKnowledgeState] = useState<AdminSchemeKnowledgeState>(() => {
@@ -1186,6 +1268,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col font-sans text-slate-900 dark:text-slate-100 selection:bg-blue-100 selection:text-slate-900 transition-colors">
+      <OfflineIndicator currentLang={currentLang} />
       <React.Suspense fallback={<div className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 text-center text-sm text-slate-500">Loading feature…</div>}>
       {/* Top Navbar */}
       <Navbar
@@ -1232,6 +1315,10 @@ export default function App() {
               handleQuickOccupationSelect('Student');
             } else if (filter === 'Farmers') {
               handleQuickOccupationSelect('Farmer');
+            } else if (filter === 'Women') {
+              handleQuickOccupationSelect('Women');
+            } else if (filter === 'Seniors') {
+              handleQuickOccupationSelect('Senior Citizen');
             } else if (filter === 'Business Owners') {
               handleQuickOccupationSelect('Self-Employed');
             }
@@ -1249,6 +1336,10 @@ export default function App() {
         {/* TAB: DASHBOARD & SCHEME DIRECTORY */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
+            <FraudProtectionBanner
+              currentLang={currentLang}
+              onOpenScanner={() => setIsFraudModalOpen(true)}
+            />
             <SavedDeadlineBanner
               schemes={allSchemes}
               savedSchemeIds={savedSchemeIds}
@@ -1281,68 +1372,323 @@ export default function App() {
               onSyncAllAiSchemes={handleSyncAllAiSchemes}
               onTriggerAiDiscovery={(topic) => handleTriggerAiDiscovery(topic, 'AI On-Demand')}
               isAiDiscovering={isAiDiscovering}
+              isAiAutoSyncEnabled={isAiAutoSyncEnabled}
+              onToggleAiAutoSync={setIsAiAutoSyncEnabled}
+              latestAutoAddedTitle={aiAdminLogs[0]?.schemeTitle}
             />
-            {/* Active Occupation Quick Selector Bar (with Student selected) */}
-            <section
-              aria-label="Occupation selector"
-              className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/80 via-white to-teal-50/70 p-4 shadow-xs"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-700 text-white shadow-xs">
-                    <GraduationCap className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-blue-800">
-                        Occupation (ਕਿੱਤਾ):
+            {/* Active Occupation + Dynamic Eligibility Criteria + Custom Location Selector Bar */}
+            {(() => {
+              const activePreset = buildDynamicEligibilityPreset(profile.occupation, profile);
+              return (
+                <section
+                  aria-label="Occupation selector"
+                  data-testid="live-eligibility-criteria-panel"
+                  className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 via-white to-teal-50/80 p-4 sm:p-5 shadow-xs space-y-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-700 text-white shadow-xs">
+                        <GraduationCap className="h-5 w-5" aria-hidden="true" />
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-700 px-2.5 py-0.5 text-xs font-bold text-white">
-                        {occupationsList.find(o => o.id === profile.occupation)?.label || profile.occupation}
-                      </span>
-                      <span className="text-xs font-semibold text-emerald-700">
-                        ({eligibleCount} Eligible · {potentialCount} Potential)
-                      </span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold uppercase tracking-wider text-blue-800">
+                            {currentLang === 'pa' ? 'ਕਿੱਤਾ ਅਤੇ ਯੋਗਤਾ (Occupation & Eligibility):' : 'Occupation & Dynamic Eligibility:'}
+                          </span>
+                          <span
+                            data-testid="active-occupation-badge"
+                            className="inline-flex items-center gap-1 rounded-full bg-blue-700 px-2.5 py-0.5 text-xs font-bold text-white"
+                          >
+                            {occupationsList.find(o => o.id === profile.occupation)?.label || profile.occupation}
+                          </span>
+                          <span
+                            data-testid="active-location-badge"
+                            className="inline-flex items-center gap-1 rounded-full bg-teal-700 px-2.5 py-0.5 text-xs font-bold text-white"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            {profile.customLocation ? `${profile.customLocation} · ` : ''}
+                            {profile.district}, {profile.state || 'Punjab'}
+                          </span>
+                          <span
+                            data-testid="live-eligibility-match-summary"
+                            className="text-xs font-extrabold text-emerald-700"
+                          >
+                            ({eligibleCount} Eligible · {potentialCount} Potential)
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          {currentLang === 'pa'
+                            ? activePreset.summaryPa
+                            : currentLang === 'hi'
+                            ? activePreset.summaryHi
+                            : activePreset.summaryEn}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-600">
-                      Select your occupation below to instantly match Student Scholarships, Farmer Subsidies, or Welfare Pensions.
-                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        data-testid="open-cyber-scanner-quick-btn"
+                        onClick={() => setIsFraudModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-900 transition hover:bg-red-100 cursor-pointer"
+                      >
+                        <ShieldAlert className="h-3.5 w-3.5 text-red-700" />
+                        <span>
+                          {currentLang === 'pa' ? 'ਵੈੱਬਸਾਈਟ ਅਸਲੀ/ਨਕਲੀ ਸਕੈਨਰ' : 'Scan Website (Cyber Shield)'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('admin')}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-900 transition hover:bg-teal-100 cursor-pointer"
+                      >
+                        <Bot className="h-3.5 w-3.5 text-teal-700" />
+                        <span>AI Knowledge Base ({allSchemes.length} Schemes)</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('admin')}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-900 transition hover:bg-teal-100 cursor-pointer"
-                  >
-                    <Bot className="h-3.5 w-3.5 text-teal-700" />
-                    <span>AI Knowledge Base ({allSchemes.length} Schemes)</span>
-                  </button>
-                </div>
-              </div>
+                  {/* Occupation Selection Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    {occupationsList.map((occ) => {
+                      const isSelected = profile.occupation === occ.id;
+                      return (
+                        <button
+                          key={occ.id}
+                          type="button"
+                          data-testid={`occupation-btn-${occ.id.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                          onClick={() => handleQuickOccupationSelect(occ.id)}
+                          aria-pressed={isSelected}
+                          className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-700 text-white shadow-sm ring-2 ring-blue-300'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'
+                          }`}
+                        >
+                          {occ.label}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {occupationsList.map((occ) => {
-                  const isSelected = profile.occupation === occ.id;
-                  return (
-                    <button
-                      key={occ.id}
-                      type="button"
-                      onClick={() => handleQuickOccupationSelect(occ.id)}
-                      aria-pressed={isSelected}
-                      className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
-                        isSelected
-                          ? 'bg-blue-700 text-white shadow-sm ring-2 ring-blue-300'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'
-                      }`}
-                    >
-                      {occ.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+                  {/* Live Adjustable Eligibility Criteria + Add Custom Location Bar */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 pt-2 border-t border-blue-100/80">
+                    {/* Left: Live Eligibility Criteria Controls for Selected Occupation */}
+                    <div className="lg:col-span-7 bg-white/95 rounded-xl border border-slate-200 p-3 shadow-2xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-900">
+                          {currentLang === 'pa'
+                            ? `${profile.occupation} ਲਈ ਲਾਈਵ ਯੋਗਤਾ ਸ਼ਰਤਾਂ (Live Eligibility Criteria)`
+                            : `Active Eligibility Criteria for ${profile.occupation}`}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {activePreset.criteriaPills.map((pill, idx) => (
+                            <span
+                              key={idx}
+                              className="text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-md"
+                            >
+                              {pill.labelEn}: <strong>{pill.value}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <label className="text-[11px] font-semibold text-slate-600">
+                          Age (Years)
+                          <input
+                            type="number"
+                            data-testid="quick-eligibility-age-input"
+                            min={1}
+                            max={105}
+                            value={profile.age}
+                            onChange={(e) =>
+                              setProfile((prev) => ({
+                                ...prev,
+                                age: Math.max(1, Number(e.target.value) || 18),
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                          />
+                        </label>
+
+                        <label className="text-[11px] font-semibold text-slate-600">
+                          Income (₹/Yr)
+                          <select
+                            data-testid="quick-eligibility-income-select"
+                            value={profile.annualIncome}
+                            onChange={(e) =>
+                              setProfile((prev) => ({
+                                ...prev,
+                                annualIncome: Number(e.target.value),
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-bold text-slate-900"
+                          >
+                            <option value={55000}>₹55,000 (BPL)</option>
+                            <option value={120000}>₹1,20,000</option>
+                            <option value={150000}>₹1,50,000</option>
+                            <option value={180000}>₹1,80,000</option>
+                            <option value={240000}>₹2,40,000</option>
+                            <option value={300000}>₹3,00,000</option>
+                            <option value={500000}>₹5,00,000</option>
+                            <option value={800000}>₹8,00,000</option>
+                          </select>
+                        </label>
+
+                        <label className="text-[11px] font-semibold text-slate-600">
+                          Social Category
+                          <select
+                            data-testid="quick-eligibility-category-select"
+                            value={profile.category}
+                            onChange={(e) =>
+                              setProfile((prev) => ({
+                                ...prev,
+                                category: e.target.value as CitizenProfile['category'],
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-bold text-slate-900"
+                          >
+                            <option value="General">General</option>
+                            <option value="SC">SC</option>
+                            <option value="OBC/BC">OBC/BC</option>
+                            <option value="EWS">EWS</option>
+                            <option value="ST">ST</option>
+                          </select>
+                        </label>
+
+                        <label className="text-[11px] font-semibold text-slate-600">
+                          Land (Acres)
+                          <input
+                            type="number"
+                            data-testid="quick-eligibility-land-input"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={profile.landholdingAcres}
+                            onChange={(e) =>
+                              setProfile((prev) => ({
+                                ...prev,
+                                landholdingAcres: Math.max(0, Number(e.target.value) || 0),
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Right: Add Custom Location (Village / City / Pincode / State / District + GPS) */}
+                    <div className="lg:col-span-5 bg-white/95 rounded-xl border border-teal-200 p-3 shadow-2xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-teal-900 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-teal-600" />
+                          {currentLang === 'pa'
+                            ? 'ਆਪਣੀ ਲੋਕੇਸ਼ਨ ਐਡ ਕਰੋ (Add Your Location)'
+                            : currentLang === 'hi'
+                            ? 'अपना स्थान जोड़ें (Add Your Location)'
+                            : 'Add Your Location (Village / City / Pincode)'}
+                        </span>
+                        <button
+                          type="button"
+                          data-testid="detect-gps-location-btn"
+                          onClick={handleDetectGpsLocation}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-md cursor-pointer"
+                        >
+                          <Navigation className="w-3 h-3" />
+                          <span>{currentLang === 'pa' ? 'GPS ਲੋਕੇਸ਼ਨ' : 'Detect GPS'}</span>
+                        </button>
+                      </div>
+
+                      <div className="flex gap-1.5">
+                        <input
+                          id="dashboard-custom-location-input"
+                          type="text"
+                          data-testid="custom-location-input"
+                          value={locationDraft}
+                          onChange={(e) => setLocationDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyCustomLocation(e.currentTarget.value);
+                            }
+                          }}
+                          placeholder={
+                            currentLang === 'pa'
+                              ? 'ਪਿੰਡ / ਸ਼ਹਿਰ / ਪਿੰਨਕੋਡ (ਜਿਵੇਂ Samana, Patiala, 147101)...'
+                              : 'Enter Village, City, District or Pincode (e.g. Patiala 147001)...'
+                          }
+                          className="flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900"
+                        />
+                        <button
+                          type="button"
+                          data-testid="save-custom-location-btn"
+                          onClick={() => {
+                            const el = document.getElementById('dashboard-custom-location-input') as HTMLInputElement | null;
+                            handleApplyCustomLocation(el?.value ?? locationDraft);
+                          }}
+                          className="rounded-lg bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 text-xs font-bold shrink-0 cursor-pointer"
+                        >
+                          {currentLang === 'pa' ? 'ਲੋਕੇਸ਼ਨ ਸੇਵ' : 'Set Location'}
+                        </button>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-2 gap-1.5">
+                        <select
+                          aria-label="Quick State Select"
+                          data-testid="quick-location-state-select"
+                          value={profile.state || 'Punjab'}
+                          onChange={(e) => {
+                            const nextState = e.target.value;
+                            const dists = getDistrictsForState(nextState);
+                            setProfile((prev) => ({
+                              ...prev,
+                              state: nextState,
+                              district: dists[0]?.name || 'Ludhiana',
+                              isPunjabDomicile: nextState === 'Punjab',
+                            }));
+                          }}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-800"
+                        >
+                          {INDIA_STATES_AND_UTS.map((st) => (
+                            <option key={st.code} value={st.name}>
+                              {st.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="Quick District Select"
+                          data-testid="quick-location-district-select"
+                          value={profile.district}
+                          onChange={(e) =>
+                            setProfile((prev) => ({
+                              ...prev,
+                              district: e.target.value,
+                            }))
+                          }
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-800"
+                        >
+                          {getDistrictsForState(profile.state || 'Punjab').map((d) => (
+                            <option key={d.name} value={d.name}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {locationStatusMsg && (
+                        <p
+                          data-testid="location-status-message"
+                          className="mt-1 text-[11px] font-semibold text-emerald-700"
+                        >
+                          {locationStatusMsg}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
 
             {/* Scheme Cards Grid */}
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4">
@@ -1553,8 +1899,8 @@ export default function App() {
           />
         )}
 
-        {/* TAB: DASHBOARD INSIGHTS */}
-        {activeTab === 'insights' && (
+        {/* TAB: ANALYTICS & DASHBOARD INSIGHTS */}
+        {(activeTab === 'analytics' || activeTab === 'insights') && (
           <div className="space-y-6">
             <DashboardInsights
               schemes={allSchemes}
@@ -1566,6 +1912,8 @@ export default function App() {
                 setActiveTab('dashboard');
               }}
               onOpenScheme={(s) => handleOpenSchemeDetails(s, 'overview')}
+              onChangeOccupation={handleQuickOccupationSelect}
+              onOpenProfileWizard={() => setActiveTab('wizard')}
             />
           </div>
         )}
@@ -1683,13 +2031,22 @@ export default function App() {
           />
         )}
 
-        {/* TAB: DISTRICT SEWA KENDRAS */}
+        {/* TAB: DISTRICT SEWA KENDRAS (ALL 36 INDIAN STATES & UTs) */}
         {activeTab === 'districts' && (
           <DistrictPortalFinder
             currentLang={currentLang}
+            selectedStateName={profile.state || 'Punjab'}
+            onSelectState={(stateName) =>
+              setProfile((prev) => ({
+                ...prev,
+                state: stateName,
+                isPunjabDomicile: stateName === 'Punjab',
+              }))
+            }
             selectedDistrictName={profile.district}
             onSelectDistrict={(districtName) => setProfile(prev => ({ ...prev, district: districtName }))}
             onOpenSchemeModal={(s) => setSelectedScheme(s)}
+            allSchemes={allSchemes}
           />
         )}
 
@@ -1719,6 +2076,7 @@ export default function App() {
         {activeTab === 'fraud-shield' && (
           <div className="space-y-6">
             <CyberFraudShieldModal
+              inlineMode={true}
               currentLang={currentLang}
               onClose={() => setActiveTab('dashboard')}
             />

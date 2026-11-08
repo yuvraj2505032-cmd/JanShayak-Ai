@@ -139,10 +139,11 @@ export function evaluateSchemeEligibility(profile: CitizenProfile, scheme: Schem
     });
   }
 
-  // 6. Punjab Domicile criteria
+  // 6. State / Punjab Domicile criteria
+  const userState = (profile.state || (profile.isPunjabDomicile ? 'Punjab' : '')).trim() || 'Punjab';
   if (scheme.requiresPunjabDomicile) {
     totalWeight += 10;
-    const isDomicileMet = profile.isPunjabDomicile;
+    const isDomicileMet = profile.isPunjabDomicile && (!profile.state || profile.state === 'Punjab');
 
     if (isDomicileMet) {
       earnedWeight += 10;
@@ -157,8 +158,29 @@ export function evaluateSchemeEligibility(profile: CitizenProfile, scheme: Schem
       labelPa: 'ਪੰਜਾਬ ਰਿਹਾਇਸ਼ ਦਾ ਸਬੂਤ ਜ਼ਰੂਰੀ',
       labelHi: 'पंजाब निवास प्रमाण पत्र अनिवार्य',
       isMet: isDomicileMet,
-      userValueDescription: profile.isPunjabDomicile ? 'Yes, Punjab Resident' : 'Not a Punjab resident',
+      userValueDescription: isDomicileMet ? 'Yes, Punjab Resident' : `Resident of ${userState}`,
       requiredDescription: 'Bona fide Punjab Resident',
+      isMandatory: true
+    });
+  } else if (scheme.state && scheme.state !== 'All' && scheme.state !== 'Central') {
+    totalWeight += 10;
+    const isStateMet = userState.toLowerCase() === scheme.state.toLowerCase();
+
+    if (isStateMet) {
+      earnedWeight += 10;
+      matchedReasons.push(`Resident / Domicile of ${scheme.state} confirmed`);
+    } else {
+      failedReasons.push(`Requires ${scheme.state} State Domicile / Residence Certificate`);
+    }
+
+    criteria.push({
+      id: 'state-domicile',
+      labelEn: `${scheme.state} State Domicile / Residence Proof`,
+      labelPa: `${scheme.state} ਰਾਜ ਰਿਹਾਇਸ਼ ਦਾ ਸਬੂਤ ਜ਼ਰੂਰੀ`,
+      labelHi: `${scheme.state} राज्य निवास प्रमाण पत्र अनिवार्य`,
+      isMet: isStateMet,
+      userValueDescription: `Your State: ${userState}`,
+      requiredDescription: `Resident of ${scheme.state}`,
       isMandatory: true
     });
   }

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Home, Moon, Sun, UserRound, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Home, Moon, Sun, UserRound, X } from 'lucide-react';
 import { Language } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { SupabaseAccount } from './SupabaseAccount';
 import type { SupabaseAccountProps } from './SupabaseAccount';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavbarProps {
   currentLang: Language;
@@ -30,9 +31,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const t = TRANSLATIONS[currentLang];
   const activeEmail = cloudAccount.localUserEmail || cloudAccount.userEmail;
+  const isAnalyticsActive = activeTab === 'analytics' || activeTab === 'insights';
   const navItems = [
     { id: 'dashboard', label: t.tabDashboard },
-    { id: 'insights', label: t.tabInsights },
+    { id: 'analytics', label: t.tabAnalytics || 'Analytics' },
     { id: 'wizard', label: t.tabEligibilityWizard },
     { id: 'saved', label: `${t.tabSaved}${savedCount > 0 ? ` (${savedCount})` : ''}` },
     { id: 'video-guides', label: t.tabVideoGuides },
@@ -54,13 +56,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const selectTab = (tab: string) => {
     onTabChange(tab);
     setIsMenuOpen(false);
-    if (tab === 'dashboard') {
+    if (tab === 'dashboard' || tab === 'analytics') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl transition-colors dark:border-slate-800 dark:bg-slate-950/90">
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl transition-colors dark:border-slate-800 dark:bg-slate-950/90">
       <div className="relative mx-auto flex h-[64px] sm:h-[68px] max-w-7xl items-center justify-between gap-1.5 px-2.5 sm:gap-2 sm:px-6">
         <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
           <button
@@ -93,6 +95,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </button>
 
+          <button
+            type="button"
+            data-testid="navbar-analytics-tab"
+            onClick={() => selectTab('analytics')}
+            aria-current={isAnalyticsActive ? 'page' : undefined}
+            className={`inline-flex min-h-8 sm:min-h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] sm:text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-blue-100 cursor-pointer whitespace-nowrap ${
+              isAnalyticsActive
+                ? 'border-blue-700 bg-blue-700 text-white shadow-2xs dark:border-blue-500 dark:bg-blue-600'
+                : 'border-slate-200 bg-slate-50/90 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700'
+            }`}
+          >
+            <BarChart3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>{t.tabAnalytics || 'Analytics'}</span>
+          </button>
+
           {activeTab !== 'dashboard' && (
             <button
               type="button"
@@ -109,6 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
+          <PWAInstallButton currentLang={currentLang} />
           <div
             role="group"
             aria-label="Choose language"

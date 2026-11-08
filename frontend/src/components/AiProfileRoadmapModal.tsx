@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CitizenProfile, Language, Scheme } from '../types/scheme';
 import { GOV_SCHEMES } from '../data/schemes';
 import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
+import { generateOfflineProfileRoadmap } from '../utils/offlineCache';
 import { apiUrl } from '../lib/apiUrl';
 import { 
   Sparkles, 
@@ -44,6 +45,10 @@ export const AiProfileRoadmapModal: React.FC<AiProfileRoadmapModalProps> = ({
     setError(null);
 
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setRoadmap(generateOfflineProfileRoadmap(profile, schemes, currentLang));
+        return;
+      }
       const res = await fetch(apiUrl('/api/ai/profile-analysis'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,10 +64,11 @@ export const AiProfileRoadmapModal: React.FC<AiProfileRoadmapModalProps> = ({
       }
 
       const data = await res.json();
-      setRoadmap(data.analysis || '');
+      setRoadmap(data.analysis || generateOfflineProfileRoadmap(profile, schemes, currentLang));
     } catch (err) {
-      console.error('Error fetching AI roadmap:', err);
-      setError('Could not connect to AI advisor. Please try again.');
+      console.info('Using offline profile roadmap fallback:', err);
+      setRoadmap(generateOfflineProfileRoadmap(profile, schemes, currentLang));
+      setError(null);
     } finally {
       setIsLoading(false);
     }

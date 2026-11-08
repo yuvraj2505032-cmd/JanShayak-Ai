@@ -20,7 +20,7 @@ export type Occupation =
   | 'Private Employee'
   | 'Government Employee';
 
-export type SchemeLevel = 'Punjab State' | 'Central Government';
+export type SchemeLevel = 'Punjab State' | 'Central Government' | (string & {});
 
 export interface EligibilityCriterion {
   id: string;
@@ -39,6 +39,7 @@ export interface Scheme {
   titlePa: string;
   titleHi: string;
   level: SchemeLevel;
+  state?: string;
   departmentEn: string;
   departmentPa: string;
   departmentHi: string;
@@ -89,6 +90,9 @@ export interface Scheme {
 export interface CitizenProfile {
   username: string;
   role?: UserRole;
+  state?: string;
+  customLocation?: string;
+  pincode?: string;
   age: number;
   gender: Gender;
   occupation: Occupation;

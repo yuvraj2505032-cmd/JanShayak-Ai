@@ -11,6 +11,7 @@ import {
   TargetGroupFilter,
 } from '../utils/advancedSchemeFilter';
 import { getSchemeEra } from '../data/officialPortals';
+import { INDIA_STATES_AND_UTS } from '../data/indiaStatesAndDistricts';
 import { CitizenProfile, EligibilityEvaluation, Language, Occupation, Scheme } from '../types/scheme';
 import {
   Bookmark,
@@ -53,6 +54,9 @@ interface SmartDashboardHubProps {
   onSyncAllAiSchemes?: () => void;
   onTriggerAiDiscovery?: (customTopic?: string) => Promise<void>;
   isAiDiscovering?: boolean;
+  isAiAutoSyncEnabled?: boolean;
+  onToggleAiAutoSync?: (enabled: boolean) => void;
+  latestAutoAddedTitle?: string;
 }
 
 export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
@@ -71,6 +75,9 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
   onSyncAllAiSchemes,
   onTriggerAiDiscovery,
   isAiDiscovering = false,
+  isAiAutoSyncEnabled = true,
+  onToggleAiAutoSync,
+  latestAutoAddedTitle,
 }) => {
   const [isFilterExpanded, setIsFilterExpanded] = useState(true);
   const [quickAiTopic, setQuickAiTopic] = useState('');
@@ -148,10 +155,10 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
 
   return (
     <div className="mb-8 space-y-5" data-testid="smart-dashboard-hub">
-      {/* 0. AI Autonomous Scheme Discovery Bar: Auto-Add New (2025-26) + Purani (Classic) Schemes */}
+      {/* 0. AI Autonomous Scheme Discovery Bar: Auto-Add New (2025-26) + All 36 States + Purani Schemes */}
       <div
         data-testid="ai-autonomous-sync-bar"
-        className="rounded-2xl border border-blue-200/90 bg-gradient-to-r from-slate-900 via-blue-950 to-teal-950 p-4 text-white shadow-md"
+        className="rounded-2xl border border-blue-200/90 bg-slate-900 bg-linear-to-r bg-gradient-to-r from-slate-900 via-blue-950 to-teal-950 p-4 text-white shadow-md"
       >
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div className="space-y-1.5">
@@ -160,27 +167,73 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                 <Bot className="h-3.5 w-3.5 text-teal-300" />
                 <span>
                   {currentLang === 'pa'
-                    ? 'AI ਆਟੋਮੈਟਿਕ ਸਕੀਮ ਸਿੰਕ (ਨਵੀਆਂ + ਪੁਰਾਣੀਆਂ ਸਕੀਮਾਂ)'
+                    ? 'AI ਆਟੋਮੈਟਿਕ ਸਕੀਮ ਐਡਮਿਨ (ਸਾਰੇ 36 ਰਾਜ + ਕੇਂਦਰੀ ਸਕੀਮਾਂ)'
                     : currentLang === 'hi'
-                    ? 'AI ऑटोमैटिक योजना सिंक (नई + पुरानी योजनाएं)'
-                    : 'AI Autonomous Scheme Sync (New 2026 + Purani Classic Schemes)'}
+                    ? 'AI ऑटोमैटिक योजना एडमिन (सभी 36 राज्य + केंद्रीय योजनाएं)'
+                    : 'AI Autonomous Scheme Sync (All 36 States/UTs + Central + Purani)'}
                 </span>
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Auto-Sync Active ({evaluations.length} Total Schemes)
+              <button
+                type="button"
+                data-testid="toggle-ai-autosync-btn"
+                onClick={() => onToggleAiAutoSync?.(!isAiAutoSyncEnabled)}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold transition cursor-pointer ${
+                  isAiAutoSyncEnabled
+                    ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40'
+                    : 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40'
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${isAiAutoSyncEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                {isAiAutoSyncEnabled
+                  ? `Auto-Sync ON (${evaluations.length} Total Schemes)`
+                  : `Auto-Sync Paused (${evaluations.length} Total Schemes)`}
+              </button>
+              <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[10px] font-bold text-blue-200">
+                Online + Offline Hybrid Engine
               </span>
             </div>
             <p className="text-xs text-blue-100/90">
               {currentLang === 'pa'
-                ? 'AI ਆਪਣੇ ਆਪ ਨਵੀਆਂ (2025-26) ਅਤੇ ਪੁਰਾਣੀਆਂ (Classic) ਸਰਕਾਰੀ ਸਕੀਮਾਂ, ਪੋਰਟਲ ਲਿੰਕ ਅਤੇ YouTube ਵੀਡੀਓਜ਼ ਜੋੜਦਾ ਹੈ।'
+                ? 'AI ਐਡਮਿਨ ਆਪਣੇ ਆਪ ਭਾਰਤ ਦੇ ਸਾਰੇ 28 ਰਾਜਾਂ, 8 ਕੇਂਦਰ ਸ਼ਾਸਤ ਪ੍ਰਦੇਸ਼ਾਂ ਅਤੇ ਕੇਂਦਰ ਸਰਕਾਰ ਦੀਆਂ ਨਵੀਆਂ ਅਤੇ ਪੁਰਾਣੀਆਂ ਸਕੀਮਾਂ ਆਨਲਾਈਨ ਅਤੇ ਆਫ਼ਲਾਈਨ ਦੋਵੇਂ ਮੋਡ ਵਿੱਚ ਜੋੜਦਾ ਰਹਿੰਦਾ ਹੈ।'
                 : currentLang === 'hi'
-                ? 'AI स्वचालित रूप से नई (2025-26) और पुरानी (Classic) सरकारी योजनाएं, आधिकारिक लिंक और YouTube वीडियो जोड़ता है।'
-                : 'AI automatically discovers and adds both newly launched (2025–2026) and classic/existing (Purani) government schemes with official .gov.in links & YouTube guides.'}
+                ? 'AI एडमिन स्वचालित रूप से सभी 28 राज्यों, 8 केंद्र शासित प्रदेशों और केंद्र सरकार की नई व पुरानी योजनाएं ऑनलाइन और ऑफ़लाइन दोनों मोड में जोड़ता रहता है।'
+                : 'AI Admin continuously discovers and auto-adds new (2025–2026) and classic (Purani) schemes across all 28 States & 8 Union Territories in both Online and Offline modes.'}
             </p>
+            {latestAutoAddedTitle && (
+              <p className="text-[11px] font-semibold text-teal-300" data-testid="latest-ai-added-ticker">
+                ⚡ Latest AI Auto-Added: <span className="text-white underline decoration-teal-400/60">{latestAutoAddedTitle}</span>
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {onTriggerAiDiscovery && (
+              <button
+                type="button"
+                data-testid="ai-auto-add-next-btn"
+                disabled={isAiDiscovering}
+                onClick={async () => {
+                  await onTriggerAiDiscovery(undefined);
+                  setSyncNotice(
+                    currentLang === 'pa'
+                      ? 'AI ਐਡਮਿਨ ਨੇ ਆਪਣੇ ਆਪ ਇੱਕ ਨਵੀਂ ਸਰਕਾਰੀ ਸਕੀਮ ਖੋਜ ਕੇ ਜੋੜ ਦਿੱਤੀ ਹੈ!'
+                      : currentLang === 'hi'
+                      ? 'AI एडमिन ने स्वचालित रूप से एक नई सरकारी योजना खोज कर जोड़ दी है!'
+                      : 'AI Admin autonomously discovered and added a new Government Scheme!'
+                  );
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-sm transition hover:bg-emerald-300 disabled:opacity-60 cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>
+                  {currentLang === 'pa'
+                    ? 'AI ਨਾਲ ਨਵੀਂ ਸਕੀਮ ਹੁਣੇ ਜੋੜੋ'
+                    : currentLang === 'hi'
+                    ? 'AI से नई योजना अभी जोड़ें'
+                    : 'AI Auto-Add New Scheme Now'}
+                </span>
+              </button>
+            )}
             {onSyncAllAiSchemes && (
               <button
                 type="button"
@@ -189,10 +242,10 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                   onSyncAllAiSchemes();
                   setSyncNotice(
                     currentLang === 'pa'
-                      ? 'ਸਾਰੀਆਂ ਨਵੀਆਂ ਅਤੇ ਪੁਰਾਣੀਆਂ ਸਕੀਮਾਂ AI ਦੁਆਰਾ ਜੋੜ ਦਿੱਤੀਆਂ ਗਈਆਂ ਹਨ!'
+                      ? 'ਸਾਰੇ ਰਾਜਾਂ ਦੀਆਂ ਨਵੀਆਂ ਅਤੇ ਪੁਰਾਣੀਆਂ ਸਕੀਮਾਂ AI ਦੁਆਰਾ ਜੋੜ ਦਿੱਤੀਆਂ ਗਈਆਂ ਹਨ!'
                       : currentLang === 'hi'
-                      ? 'सभी नई और पुरानी योजनाएं AI द्वारा जोड़ दी गई हैं!'
-                      : 'All New (2026) & Purani (Classic) schemes synced by AI!'
+                      ? 'सभी राज्यों की नई और पुरानी योजनाएं AI द्वारा जोड़ दी गई हैं!'
+                      : 'All 36 States/UTs New (2026) & Purani (Classic) schemes synced by AI!'
                   );
                 }}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-teal-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-sm transition hover:bg-teal-300 cursor-pointer"
@@ -200,10 +253,10 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                 <RefreshCw className={`h-3.5 w-3.5 ${isAiDiscovering ? 'animate-spin' : ''}`} />
                 <span>
                   {currentLang === 'pa'
-                    ? 'AI ਨਾਲ ਨਵੀਆਂ + ਪੁਰਾਣੀਆਂ ਸਕੀਮਾਂ ਜੋੜੋ'
+                    ? 'ਸਾਰੇ ਰਾਜਾਂ ਦੀਆਂ ਸਕੀਮਾਂ ਸਿੰਕ ਕਰੋ'
                     : currentLang === 'hi'
-                    ? 'AI से नई + पुरानी योजनाएं जोड़ें'
-                    : 'AI Auto-Add All New + Purani Schemes'}
+                    ? 'सभी राज्यों की योजनाएं सिंक करें'
+                    : 'Sync All States + Purani Schemes'}
                 </span>
               </button>
             )}
@@ -521,7 +574,7 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                 htmlFor="filter-level"
                 className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
               >
-                {currentLang === 'pa' ? 'ਸਰਕਾਰ ਦਾ ਪੱਧਰ' : currentLang === 'hi' ? 'सरकार का स्तर' : 'State / Central Level'}
+                {currentLang === 'pa' ? 'ਰਾਜ / ਕੇਂਦਰ ਸਰਕਾਰ (36 States/UTs)' : currentLang === 'hi' ? 'राज्य / केंद्र सरकार (36 States/UTs)' : 'State / Central Level (All 36 States)'}
               </label>
               <select
                 id="filter-level"
@@ -530,9 +583,16 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                 onChange={(e) => onUpdateFilters({ level: e.target.value as LevelFilter })}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
-                <option value="all">All (Punjab + Central)</option>
-                <option value="Punjab State">Punjab State Government</option>
+                <option value="all">All India (Central + All 36 States/UTs)</option>
                 <option value="Central Government">Central Government (India)</option>
+                <option value="Punjab State">Punjab State Government</option>
+                <optgroup label="All 28 Indian States & 8 Union Territories">
+                  {INDIA_STATES_AND_UTS.map((st) => (
+                    <option key={st.code} value={st.name === 'Punjab' ? 'Punjab State' : st.name}>
+                      {st.name} ({st.namePa}) — {st.districts.length} Districts
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 

@@ -65,6 +65,13 @@ export function parseCitizenProfile(value: unknown): CitizenProfile {
   return {
     username: typeof profile.username === 'string' ? profile.username : '',
     ...(profile.role === 'Admin' || profile.role === 'Citizen' ? { role: profile.role } : {}),
+    ...(typeof profile.state === 'string' && profile.state.trim() ? { state: profile.state.trim() } : {}),
+    ...(typeof profile.customLocation === 'string' && profile.customLocation.trim()
+      ? { customLocation: profile.customLocation.trim() }
+      : {}),
+    ...(typeof profile.pincode === 'string' && profile.pincode.trim()
+      ? { pincode: profile.pincode.trim() }
+      : {}),
     age: profile.age,
     gender: profile.gender,
     occupation: profile.occupation,

@@ -1,65 +1,50 @@
-# 🇮🇳 Government Scheme Chatbot - G2
+# Janshayak AI - Government Scheme Navigator
 
-An AI-powered chatbot to help citizens discover and understand Indian Government schemes in simple language.
+## Website Features
 
-Built with Gemini AI + Supabase + Vite + TypeScript.
-
-### 🚀 Live Demo
-[https://jan-shayak.vercel.app/]
-
-### ✨ Features
-- Ask in Punjabi / Hindi / English - Bot understands all
-- Find schemes by age, income, caste, location, and occupation
-- Instant AI-based eligibility check (Eligible, Potential Match, Not Eligible)
-- Voice search & spoken audio assistant support (Speech-to-Text & Text-to-Speech)
-- Real-time data from official `.gov.in` sources via Tavily API
-- Smart Citizen Profile Wizard
-- AI Scheme Advisor & AI Full Profile Welfare Roadmap
-- "What-If" Eligibility Simulator
-- 1-Year & 5-Year Financial Benefit Estimator
-- Family Benefit Finder (multi-member household calculator)
-- Smart Document Checklist & AI Document Scanner
-- Application Status Tracker & Printable Summaries
-- Scheme Deadline Reminder Hub & Alerts
-- All 23 Punjab Districts Sewa Kendra & Official Portal Finder
-- Multilingual Step-by-Step Video Tutorials Hub
-- Cyber Fraud Shield & Official `.gov.in` Link Verifier
-- Dashboard Analytics & Visual Insights
-- Bookmark / Save Schemes & Recently Viewed Offline Cache (PWA)
-- Local Device Account (PBKDF2) & Supabase Cloud Sync with Google Sign-In
-- Dark Mode / Light Mode Toggle
-- Admin Console & Autonomous AI Scheme Discovery
-
-### 🛠️ Tech Stack
-- **Frontend:** Vite, React, TypeScript, Tailwind CSS
-- **Backend:** Node.js (`server.ts`), Express
-- **AI:** Google Gemini API, Groq API
-- **Database:** Supabase
-- **Search:** Tavily API
-
-### ⚙️ How to Run Locally
-
-1. Clone the repo
-```bash
-git clone https://github.com/yuvraj2505032-cmd/g2.git
-cd g2
-```
-
-Install dependencies and start the app:
-
-```bash
-npm install
-npm run dev
-```
-
-### AI provider and deployment configuration
-
-The Express API loads `backend/.env` first and then the root `.env`; environment variables already set by the hosting platform take precedence. Configure `GROQ_API_KEY` and/or `GEMINI_API_KEY` on the backend host. `TAVILY_API_KEY` enables official-source search. The chatbot only sends questions to third-party AI/search providers after the user opts in via its consent checkbox.
-
-Set `ADMIN_PORTAL_PASSWORD` on the backend to choose the admin password; admin editing and deletion are enabled only after the backend verifies it. The backend issues a signed, expiring admin session token and requires it for knowledge-base updates. If unset, local development uses the built-in default password.
-
-For deployments where the frontend and API are hosted separately (for example, this Vercel frontend with its Render Express API), `vercel.json` proxies `/api/*` requests to the configured Render service. For a different backend host, set the frontend build variable `VITE_API_BASE_URL` to that backend origin (no trailing slash), and add the deployed frontend's exact origin to the backend's `CORS_ORIGINS`. Leave `VITE_API_BASE_URL` empty when the frontend and API share an origin or Vercel's API rewrite is being used.
-
-### Accounts and saved data
-
-Use **On this device** to create a local account without configuring Supabase. The password is stored as a salted PBKDF2 hash, and account data stays in that browser on that device. Local accounts do not sync across devices and cannot be recovered if browser data is cleared. Choose **Cloud sync** instead to use a configured Supabase project.
+- **Online + Offline Hybrid Mode (PWA)**:
+  - Works 100% Online (live AI + cloud sync) and 100% Offline (Service Worker caching + local AI engine)
+  - Installable as a Desktop & Mobile App (`Offline App`)
+  - Live Connectivity Badge (`Online + Offline Ready` / `Offline Mode`)
+- **All 36 Indian States & Union Territories + 780+ Districts**:
+  - All 28 Indian States & 8 Union Territories selectable in Profile, Filters & District Directory
+  - 780+ Districts with Collectorate / e-Seva Kendra / CSC addresses, DC office contacts & toll-free helplines
+  - State-wise flagship government schemes for every Indian State & UT alongside Central & Punjab schemes
+- **Autonomous AI Admin (Continuous Auto-Add Schemes)**:
+  - Automatically discovers and adds new State & Central government schemes in the background (both Online & Offline)
+  - One-click `AI Auto-Add New Scheme Now` & `Sync All States + Purani Schemes`
+  - Custom AI topic scheme & `.gov.in` portal generator with YouTube video tutorials
+  - Admin Console with Scheme CRUD (Add, Edit, Delete, Restore)
+- **Multilingual Support**:
+  - Punjabi (ਪੰਜਾਬੀ)
+  - Hindi (हिन्दी)
+  - English
+  - 22 Indian Voice Input & Auto-Speak Languages
+- **Smart Scheme Discovery & Advanced Filtering**:
+  - Natural Language Search Bar with Voice Search
+  - Filter by All 36 States/UTs, Central Government, Age, Annual Income, Education, Occupation & Category
+  - Target Group Quick Filters (All Citizens, Women & Girls, Students & Youth, Farmers, Business & Artisans)
+  - Scheme Era Filter (All Schemes, New Schemes 2025-26, Purani / Classic Schemes, AI Auto-Added)
+- **Citizen Eligibility & Simulation Tools**:
+  - Interactive Profile & Eligibility Wizard (with State & District selector)
+  - Real-Time Eligibility Match Score (`100% Match`, `Eligible`, `Potential`)
+  - What-If Eligibility Simulator
+  - Family Benefit Finder & Multi-Member Calculator
+  - Per-Scheme Benefit Estimator Calculator
+- **AI-Powered Guidance (Online + Offline)**:
+  - Multilingual Voice & Text AI Chatbot (`Jansahayak AI`)
+  - Per-Scheme AI Eligibility & Application Advisor
+  - Personalized Full-Profile AI Welfare Roadmap
+- **Document & Application Management**:
+  - Interactive Document Checklist & Readiness Score
+  - AI Document Scanner & Missing Document Detector
+  - 30-Day Upcoming Deadline Alerts & Reminder Hub
+  - Personal Scheme Vault (Save / Bookmark Schemes)
+  - Step-by-Step Application Journey Tracker with Printable Summary
+- **Tutorials & Citizen Safety**:
+  - Embedded YouTube Video Tutorials Hub
+  - Official `.gov.in` / `.nic.in` Portal Directory
+  - Cyber Fraud Shield & Helpline Alerts (`1930`, `1100`, `1076`, `181`)
+  - Dark Mode & Light Mode Theme Toggle
+  - Local Device Account & Supabase Cloud Sync
+  - Full Documentation (`ARCHITECTURE.md` / `artitecture.md` & `API_REFERENCE.md` / `apireference.md`)

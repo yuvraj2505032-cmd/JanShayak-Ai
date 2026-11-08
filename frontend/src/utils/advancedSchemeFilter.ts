@@ -4,7 +4,7 @@ import { getSchemeEra } from '../data/officialPortals';
 export type TargetGroupFilter = 'all' | 'women' | 'students' | 'farmers' | 'business';
 export type AgeBracketFilter = 'all' | 'under18' | '18to25' | '26to45' | '46to59' | '60plus';
 export type EducationLevelFilter = 'all' | 'enrolled' | 'skill' | 'general';
-export type LevelFilter = 'all' | 'Punjab State' | 'Central Government';
+export type LevelFilter = 'all' | 'Punjab State' | 'Central Government' | (string & {});
 export type SchemeEraFilter = 'all' | 'new' | 'purani' | 'ai-added';
 
 export interface AdvancedSearchFilters {
@@ -301,6 +301,7 @@ export function matchesNaturalLanguageQuery(scheme: Scheme, rawQuery: string): b
     scheme.benefitAmountText,
     scheme.benefitType,
     scheme.level,
+    scheme.state,
     ...(scheme.categoryTags || []),
     ...(scheme.requiredDocuments || []).map((d) => `${d.nameEn} ${d.namePa} ${d.nameHi}`),
   ]
@@ -358,8 +359,22 @@ export function filterSchemesAdvanced(
       if (filters.targetGroup === 'farmers' && !isSchemeForFarmers(scheme)) return false;
       if (filters.targetGroup === 'business' && !isSchemeForBusiness(scheme)) return false;
 
-      // 3. Level (State vs Central) filter
-      if (filters.level !== 'all' && scheme.level !== filters.level) return false;
+      // 3. Level (State vs Central or specific Indian State/UT) filter
+      if (filters.level !== 'all') {
+        const lvl = filters.level.toLowerCase();
+        if (filters.level === 'Central Government') {
+          if (scheme.level !== 'Central Government') return false;
+        } else if (filters.level === 'Punjab State' || lvl === 'punjab') {
+          if (scheme.level !== 'Punjab State' && scheme.state?.toLowerCase() !== 'punjab') return false;
+        } else {
+          const matchesState =
+            scheme.state?.toLowerCase() === lvl ||
+            scheme.level.toLowerCase() === lvl ||
+            scheme.level.toLowerCase() === `${lvl} state` ||
+            (scheme.categoryTags || []).some((t) => t.toLowerCase() === lvl);
+          if (!matchesState) return false;
+        }
+      }
 
       // 4. Occupation filter
       if (filters.occupation !== 'All') {

@@ -12,7 +12,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     
     // Tabs
     tabDashboard: 'Overview & Schemes',
-    tabInsights: 'Dashboard Insights',
+    tabAnalytics: 'Analytics',
+    tabInsights: 'Analytics',
     tabEligibilityWizard: 'Eligibility Checker',
     tabVideoGuides: 'Video Guides',
     tabScanner: 'AI Document Scanner',
@@ -225,7 +226,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
 
     // Tabs
     tabDashboard: 'ਸਾਰੀਆਂ ਸਕੀਮਾਂ',
-    tabInsights: 'ਡੈਸ਼ਬੋਰਡ ਅੰਕੜੇ (Insights)',
+    tabAnalytics: 'ਐਨਾਲਿਟਿਕਸ (Analytics)',
+    tabInsights: 'ਐਨਾਲਿਟਿਕਸ (Analytics)',
     tabEligibilityWizard: 'ਯੋਗਤਾ ਚੈਕਰ',
     tabVideoGuides: 'ਵੀਡੀਓ ਗਾਈਡਾਂ',
     tabScanner: 'ਏ.ਆਈ ਦਸਤਾਵੇਜ਼ ਸਕੈਨਰ',
@@ -438,7 +440,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
 
     // Tabs
     tabDashboard: 'सभी योजनाएं',
-    tabInsights: 'डैशबोर्ड अंतर्दृष्टि (Insights)',
+    tabAnalytics: 'एनालिटिक्स (Analytics)',
+    tabInsights: 'एनालिटिक्स (Analytics)',
     tabEligibilityWizard: 'पात्रता चेकर',
     tabVideoGuides: 'वीडियो गाइड',
     tabScanner: 'एआई दस्तावेज स्कैनर',

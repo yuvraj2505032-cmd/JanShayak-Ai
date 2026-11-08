@@ -1,0 +1,39 @@
+{
+  "id": "/",
+  "name": "Janshayak AI - Government Scheme Navigator",
+  "short_name": "Janshayak",
+  "description": "Discover verified Punjab & Central Government welfare schemes, check instant eligibility, calculate benefits, and access official .gov.in portals offline in English, Punjabi, and Hindi.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#1d4ed8",
+  "background_color": "#ffffff",
+  "lang": "en-IN",
+  "categories": ["government", "utilities", "education", "finance"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/janshayak-ai-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

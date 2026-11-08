@@ -4,6 +4,7 @@ import type { AssistantAppAction } from '../../../shared/types/backend';
 import { TRANSLATIONS } from '../data/translations';
 import { GOV_SCHEMES } from '../data/schemes';
 import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
+import { generateOfflineChatReply } from '../utils/offlineCache';
 import { apiUrl } from '../lib/apiUrl';
 import { 
   X, 
@@ -99,6 +100,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
   // Citizen Consent Checkbox state (DPDP Act compliance)
   const [hasConsent, setHasConsent] = useState<boolean>(false);
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -143,9 +145,11 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     }
   }, [assistantLang, messages.length]);
 
-  // Scroll to bottom on new message
+  // Scroll chat container to bottom on new message without shifting outer viewport
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages, isLoading, liveTranscript]);
 
   // Browser speech recognition availability and language coverage vary by device.
@@ -305,6 +309,9 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     setIsLoading(true);
 
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Offline mode active');
+      }
       const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -368,16 +375,22 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
         }, 200);
       }
     } catch (err) {
-      console.error('Error contacting chat endpoint:', err);
+      console.info('Using local offline scheme assistant:', err);
+      const offlineResult = generateOfflineChatReply(query, voiceLanguage, userProfile, schemes);
       const fallbackMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
         sender: 'assistant',
-        text: assistantLang === 'pa'
-          ? `ਮੁਆਫ਼ ਕਰਨਾ, ਸਰਵਰ ਨਾਲ ਸੰਪਰਕ ਵਿੱਚ ਦਿੱਕਤ ਆਈ ਹੈ। ਤੁਸੀਂ ਪੰਜਾਬ ਨਾਗਰਿਕ ਹੈਲਪਲਾਈਨ 1100 'ਤੇ ਕਾਲ ਕਰਕੇ ਜਾਂ ਨੇੜਲੇ ਸੇਵਾ ਕੇਂਦਰ ਜਾ ਕੇ ਜਾਣਕਾਰੀ ਪ੍ਰਾਪਤ ਕਰ ਸਕਦੇ ਹੋ।`
-          : `I encountered an issue contacting the live AI server. Please verify your connection or call the Punjab Citizen Helpline at 1100.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        text: offlineResult.reply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        recommendedSchemeIds: offlineResult.recommendedSchemeIds,
+        isAiGrounded: offlineResult.isAiGrounded
       };
       setMessages(prev => [...prev, fallbackMsg]);
+      if (autoSpeakEnabled) {
+        setTimeout(() => {
+          handleSpeak(fallbackMsg.id, fallbackMsg.text, voiceLanguage);
+        }, 200);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -411,7 +424,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-white shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-200">
       
       {/* Drawer Top Header */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-950 to-teal-900 text-white p-3.5 sm:p-4 shadow-md">
+      <div className="bg-slate-900 bg-linear-to-r bg-gradient-to-r from-blue-900 via-indigo-950 to-teal-900 text-white p-3.5 sm:p-4 shadow-md shrink-0">
         <div className="flex items-center justify-between gap-3 mb-2.5">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-teal-400/20 border border-teal-300/30 flex items-center justify-center">
@@ -555,7 +568,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
       )}
 
       {/* Chat Messages List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs sm:text-sm bg-slate-50/70">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 text-xs sm:text-sm bg-slate-50/70">
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
           const isSpeaking = speakingMessageId === msg.id;

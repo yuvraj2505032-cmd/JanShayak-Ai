@@ -1,8 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { CitizenProfile, Language, Occupation, Category, Gender } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
-import { PUNJAB_DISTRICTS } from '../data/punjabDistricts';
-import { Sparkles, RotateCcw, CheckCircle2, User, Briefcase, MapPin, IndianRupee, Layers, Check } from 'lucide-react';
+import { INDIA_STATES_AND_UTS, getDistrictsForState } from '../data/indiaStatesAndDistricts';
+import {
+  buildDynamicEligibilityPreset,
+  resolveLocationFromInputOrCoords,
+} from '../utils/cyberFraudScanner';
+import { Sparkles, RotateCcw, CheckCircle2, User, Briefcase, MapPin, IndianRupee, Layers, Check, Globe, Navigation } from 'lucide-react';
 
 interface ProfileWizardProps {
   currentLang: Language;
@@ -293,20 +297,11 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
             value={profile.occupation}
             onChange={(e) => {
               const occ = e.target.value as Occupation;
-              if (occ === 'Student') {
-                onChange({
-                  ...profile,
-                  occupation: 'Student',
-                  isEnrolledInSchoolOrCollege: true,
-                  age: profile.age > 30 ? 20 : profile.age,
-                });
-              } else {
-                onChange({
-                  ...profile,
-                  occupation: occ,
-                  isEnrolledInSchoolOrCollege: false,
-                });
-              }
+              const preset = buildDynamicEligibilityPreset(occ, profile);
+              onChange({
+                ...profile,
+                ...preset.profilePatch,
+              });
             }}
             className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           >
@@ -351,23 +346,116 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
           </div>
         </div>
 
-        {/* District in Punjab */}
+        {/* State / Union Territory (All 36 States & UTs) */}
         <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-slate-400" />
-            <span>{t.districtLabel}</span>
+          <label htmlFor="citizen-state" className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-blue-600" />
+            <span>
+              {currentLang === 'pa'
+                ? 'ਰਾਜ / ਕੇਂਦਰ ਸ਼ਾਸਤ ਪ੍ਰਦੇਸ਼ (State / UT)'
+                : currentLang === 'hi'
+                ? 'राज्य / केंद्र शासित प्रदेश (State / UT)'
+                : 'State / Union Territory (All 36)'}
+            </span>
           </label>
           <select
+            id="citizen-state"
+            data-testid="profile-state-select"
+            value={profile.state || 'Punjab'}
+            onChange={(e) => {
+              const nextState = e.target.value;
+              const nextDistricts = getDistrictsForState(nextState);
+              onChange({
+                ...profile,
+                state: nextState,
+                district: nextDistricts[0]?.name || 'Ludhiana',
+                isPunjabDomicile: nextState === 'Punjab',
+              });
+            }}
+            className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          >
+            {INDIA_STATES_AND_UTS.map((st) => (
+              <option key={st.code} value={st.name}>
+                {st.name} ({currentLang === 'pa' ? st.namePa : currentLang === 'hi' ? st.nameHi : st.code}) — {st.districts.length} Districts
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* District in Selected State */}
+        <div>
+          <label htmlFor="citizen-district" className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+            <span>
+              {t.districtLabel} ({profile.state || 'Punjab'})
+            </span>
+          </label>
+          <select
+            id="citizen-district"
+            data-testid="profile-district-select"
             value={profile.district}
             onChange={(e) => handleChange('district', e.target.value)}
             className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           >
-            {PUNJAB_DISTRICTS.map((d) => (
+            {getDistrictsForState(profile.state || 'Punjab').map((d) => (
               <option key={d.name} value={d.name}>
                 {d.name} ({currentLang === 'pa' ? d.namePa : currentLang === 'hi' ? d.nameHi : d.name})
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Custom Village / City / Pincode Location Input */}
+        <div className="sm:col-span-2">
+          <label htmlFor="citizen-custom-location" className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Navigation className="w-3.5 h-3.5 text-teal-600" />
+              <span>
+                {currentLang === 'pa'
+                  ? 'ਆਪਣਾ ਪਿੰਡ / ਸ਼ਹਿਰ / ਪਿੰਨਕੋਡ ਲਿਖੋ (Add Your Location)'
+                  : currentLang === 'hi'
+                  ? 'अपना गाँव / शहर / पिनकोड दर्ज करें (Add Your Location)'
+                  : 'Your Village / City / Ward / Pincode (Auto-Matches District & State)'}
+              </span>
+            </span>
+            {profile.pincode && (
+              <span className="text-[11px] font-mono font-bold text-teal-700">
+                PIN: {profile.pincode}
+              </span>
+            )}
+          </label>
+          <div className="flex flex-wrap sm:flex-nowrap gap-2">
+            <input
+              id="citizen-custom-location"
+              data-testid="wizard-custom-location-input"
+              type="text"
+              value={profile.customLocation || ''}
+              onChange={(e) => {
+                const rawVal = e.target.value;
+                const resolved = resolveLocationFromInputOrCoords({
+                  rawLocationText: rawVal,
+                  currentState: profile.state || 'Punjab',
+                  currentDistrict: profile.district,
+                });
+                onChange({
+                  ...profile,
+                  customLocation: rawVal,
+                  pincode: resolved.pincode || profile.pincode,
+                  state: resolved.matchedBy !== 'default' ? resolved.state : profile.state,
+                  district: resolved.matchedBy !== 'default' ? resolved.district : profile.district,
+                  isPunjabDomicile: (resolved.matchedBy !== 'default' ? resolved.state : profile.state) === 'Punjab',
+                });
+              }}
+              placeholder={
+                currentLang === 'pa'
+                  ? 'ਉਦਾਹਰਨ: ਪਿੰਡ ਸਮਾਣਾ, ਪਟਿਆਲਾ, 147101...'
+                  : currentLang === 'hi'
+                  ? 'उदाहरण: गाँव समाना, पटियाला, 147101...'
+                  : 'e.g. Village Samana, Patiala, 147101 or Sector 17, Chandigarh...'
+              }
+              className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+          </div>
         </div>
 
         {/* Landholding (if Farmer) */}
@@ -389,9 +477,9 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
           />
         </div>
 
-        {/* Toggles: Punjab Domicile, Disability, Widow, Student */}
-        <div className="sm:col-span-2 lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          {/* Punjab Domicile */}
+        {/* Toggles: State Domicile, Disability, Widow, Student */}
+        <div className="sm:col-span-2 lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          {/* State Domicile */}
           <button
             type="button"
             onClick={() => handleChange('isPunjabDomicile', !profile.isPunjabDomicile)}
@@ -402,13 +490,17 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold">{t.domicileLabel}</span>
+              <span className="text-[11px] font-semibold">
+                {profile.state && profile.state !== 'Punjab'
+                  ? `${profile.state} Domicile`
+                  : t.domicileLabel}
+              </span>
               {profile.isPunjabDomicile && <Check className="w-3.5 h-3.5 text-blue-700" />}
             </div>
             <span className="text-[10px] font-bold mt-1 text-blue-700">
               {profile.isPunjabDomicile
                 ? (currentLang === 'pa' ? 'ਹਾਂ, ਪੰਜਾਬ ਵਸਨੀਕ' : currentLang === 'hi' ? 'हाँ, पंजाब निवासी' : 'Yes, Punjab Resident')
-                : (currentLang === 'pa' ? 'ਨਹੀਂ' : currentLang === 'hi' ? 'नहीं' : 'No')}
+                : `Resident of ${profile.state || 'Other State'}`}
             </span>
           </button>
 
