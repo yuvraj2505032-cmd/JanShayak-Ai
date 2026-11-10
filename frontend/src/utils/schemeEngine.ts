@@ -1,5 +1,6 @@
 import { CitizenProfile, Scheme, EligibilityEvaluation, EligibilityCriterion, FamilyMember } from '../types/scheme';
 import { GOV_SCHEMES } from '../data/schemes';
+import { isDocumentOwned } from './documentHelper';
 
 export function evaluateSchemeEligibility(profile: CitizenProfile, scheme: Scheme): EligibilityEvaluation {
   const criteria: EligibilityCriterion[] = [];
@@ -363,7 +364,7 @@ export function aggregateMissingDocuments(evaluations: EligibilityEvaluation[], 
   for (const evaluation of eligibleEvaluations) {
     for (const doc of evaluation.scheme.requiredDocuments) {
       const key = doc.nameEn.toLowerCase().trim();
-      const isOwned = userOwnedDocs.has(key);
+      const isOwned = isDocumentOwned(doc.nameEn, userOwnedDocs);
 
       if (!docMap.has(key)) {
         docMap.set(key, {
@@ -377,6 +378,7 @@ export function aggregateMissingDocuments(evaluations: EligibilityEvaluation[], 
         });
       } else {
         const existing = docMap.get(key)!;
+        if (isOwned) existing.isOwned = true;
         if (!existing.requiredBySchemes.includes(evaluation.scheme.titleEn)) {
           existing.requiredBySchemes.push(evaluation.scheme.titleEn);
         }

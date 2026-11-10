@@ -11,6 +11,7 @@ import { generateGroqText, OfficialSearchSource, searchOfficialSources } from '.
 import { getLanguageName, parseAssistantOutput } from './chatUtils.js';
 import { createAdminSessionToken, isValidAdminSessionToken, verifyAdminPortalPassword } from './adminAuth.js';
 import { analyzeWebsiteAndCyberThreat } from '../frontend/src/utils/cyberFraudScanner.js';
+import { scanAndAnalyzeDocumentInput } from '../frontend/src/utils/documentHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,7 @@ dotenv.config({
     path.resolve(__dirname, '.env'),
     path.resolve(__dirname, '../.env'),
   ],
+  quiet: true,
 });
 
 const app = express();
@@ -1066,6 +1068,65 @@ const handleDeepWebsiteAnalysis: express.RequestHandler = async (req, res) => {
 
 app.post('/api/security/scan-url', handleDeepWebsiteAnalysis);
 app.post('/api/security/deep-analyze', handleDeepWebsiteAnalysis);
+
+// API Route: AI Document Scanner & Missing Document Detector
+app.post('/api/ai/document-scanner', async (req, res) => {
+  try {
+    const {
+      fileName = '',
+      rawText = '',
+      sampleKey = '',
+      imageBase64 = '',
+      mimeType = 'image/png',
+    } = req.body || {};
+
+    let aiExtractedText = String(rawText || '').slice(0, 4000);
+
+    // If an image is provided and Gemini is configured, perform multimodal OCR + document classification
+    if (aiClient && imageBase64 && typeof imageBase64 === 'string') {
+      try {
+        const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
+        const response = await aiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: typeof mimeType === 'string' && mimeType.startsWith('image/') ? mimeType : 'image/png',
+                  data: cleanBase64,
+                },
+              },
+              {
+                text: 'Identify this Indian government welfare document (e.g., Aadhaar Card, Income Certificate, Residence/Domicile Certificate, Caste Certificate, Bank Passbook, Ration Card, Land Jamabandi/Fard, Marksheet, Disability UDID). Extract the document type, issuing authority, masked reference ID, and any expiry/validity year.',
+              },
+            ],
+          },
+        });
+        if (response.text) {
+          aiExtractedText = `${aiExtractedText} ${response.text}`.trim();
+        }
+      } catch (err) {
+        console.warn('Gemini multimodal document scan fallback:', err);
+      }
+    }
+
+    const analysis = scanAndAnalyzeDocumentInput({
+      fileName: String(fileName || ''),
+      rawText: aiExtractedText,
+      sampleKey: String(sampleKey || ''),
+    });
+
+    return res.json({
+      status: 'scanned',
+      analysis,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('AI document scanner error:', error);
+    return res.status(500).json({ error: 'Failed to scan document' });
+  }
+});
+
 
 // Serve frontend in dev via Vite middlewares, or static dist in prod
 async function setupServer() {

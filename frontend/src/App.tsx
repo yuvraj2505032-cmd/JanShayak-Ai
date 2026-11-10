@@ -1429,6 +1429,21 @@ export default function App() {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
+                        data-testid="open-doc-scanner-quick-btn"
+                        onClick={() => handleOpenScanner()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-950 transition hover:bg-indigo-100 cursor-pointer"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-indigo-700" />
+                        <span>
+                          {currentLang === 'pa'
+                            ? 'AI ਦਸਤਾਵੇਜ਼ ਸਕੈਨਰ ਅਤੇ ਘੱਟ ਕਾਗਜ਼ਾਤ'
+                            : currentLang === 'hi'
+                            ? 'AI दस्तावेज़ स्कैनर व कमी जांच'
+                            : 'AI Doc Scanner & Missing Docs'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
                         data-testid="open-cyber-scanner-quick-btn"
                         onClick={() => setIsFraudModalOpen(true)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-900 transition hover:bg-red-100 cursor-pointer"
@@ -2006,9 +2021,12 @@ export default function App() {
             <DocumentCenter
               currentLang={currentLang}
               evaluations={evaluations}
+              allSchemes={allSchemes}
               userOwnedDocs={userOwnedDocs}
               onToggleDoc={handleToggleDoc}
-              onOpenScanner={() => handleOpenScanner()}
+              onAddOwnedDoc={handleAddOwnedDoc}
+              onOpenScanner={(s) => handleOpenScanner(s)}
+              onOpenSchemeModal={(s) => setSelectedScheme(s)}
             />
           </div>
         )}
@@ -2150,9 +2168,12 @@ export default function App() {
           currentLang={currentLang}
           onClose={() => setIsScannerOpen(false)}
           targetScheme={scannerTargetScheme}
+          allSchemes={allSchemes}
+          evaluations={evaluations}
           userOwnedDocs={userOwnedDocs}
           onAddOwnedDoc={handleAddOwnedDoc}
           onRemoveOwnedDoc={handleRemoveOwnedDoc}
+          onOpenSchemeModal={(s) => setSelectedScheme(s)}
         />
       )}
 

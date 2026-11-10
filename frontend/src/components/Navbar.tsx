@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BarChart3, Home, Moon, Sun, UserRound, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Home, Moon, Scan, Sun, UserRound, X } from 'lucide-react';
 import { Language } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { SupabaseAccount } from './SupabaseAccount';
@@ -108,6 +108,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <BarChart3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>{t.tabAnalytics || 'Analytics'}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="navbar-scanner-tab"
+            onClick={() => selectTab('scanner')}
+            aria-current={activeTab === 'scanner' ? 'page' : undefined}
+            className={`hidden md:inline-flex min-h-8 sm:min-h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] sm:text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-teal-100 cursor-pointer whitespace-nowrap ${
+              activeTab === 'scanner'
+                ? 'border-teal-700 bg-teal-700 text-white shadow-2xs dark:border-teal-500 dark:bg-teal-600'
+                : 'border-teal-200 bg-teal-50/80 text-teal-900 hover:border-teal-300 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/60 dark:text-teal-200 dark:hover:border-teal-600'
+            }`}
+          >
+            <Scan className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>{currentLang === 'pa' ? 'AI ਦਸਤਾਵੇਜ਼ ਸਕੈਨਰ' : currentLang === 'hi' ? 'AI दस्तावेज़ स्कैनर' : 'AI Doc Scanner'}</span>
           </button>
 
           {activeTab !== 'dashboard' && (
