@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { evaluateSchemeEligibility, evaluateAllSchemes, simulateWhatIf, aggregateMissingDocuments } from './schemeEngine';
 import { CitizenProfile, Scheme } from '../types/scheme';
 import { GOV_SCHEMES } from '../data/schemes';
+import { INDIAN_22_LANGUAGES, getIndianLanguageConfig, detectQueryTopicIn22Languages } from './indianLanguages';
+import { generateOfflineChatReply } from './offlineCache';
 
 test('schemeEngine: PM-Kisan eligibility for small landholding farmer', () => {
   const farmerProfile: CitizenProfile = {
@@ -154,4 +156,44 @@ test('schemeEngine: Selecting Student occupation or enrolled student status matc
   assert.ok(eligibleStudentIds.includes('pm-vidyalaxmi-education-loan'));
   assert.ok(eligibleStudentIds.includes('aicte-pragati-saksham-scholarship'));
 });
+
+test('indianLanguages: all 22 Scheduled Indian Languages have native greetings, prompts, TTS/Speech fallbacks, and localized replies', () => {
+  assert.equal(INDIAN_22_LANGUAGES.length, 22, 'Must support all 22 Scheduled Indian Languages');
+
+  const sampleProfile: CitizenProfile = {
+    username: 'Gurpreet',
+    age: 35,
+    gender: 'Female',
+    occupation: 'Farmer',
+    annualIncome: 95000,
+    category: 'SC',
+    district: 'Amritsar',
+    isPunjabDomicile: true,
+    landholdingAcres: 2.5,
+    hasDisability: false,
+    isWidowOrDestitute: false,
+    isEnrolledInSchoolOrCollege: false
+  };
+
+  for (const lang of INDIAN_22_LANGUAGES) {
+    const cfg = getIndianLanguageConfig(lang.code);
+    assert.equal(cfg.code, lang.code);
+    assert.ok(cfg.welcomeGreeting.length > 10, `Missing greeting for ${lang.nameEn}`);
+    assert.ok(cfg.suggestedPrompts.length >= 3, `Need at least 3 suggested voice prompts for ${lang.nameEn}`);
+    assert.ok(cfg.ttsVoiceFallbacks.length >= 1, `Need TTS fallback locales for ${lang.nameEn}`);
+    assert.ok(cfg.speechRecognitionFallbacks.length >= 1, `Need SpeechRecognition fallback locales for ${lang.nameEn}`);
+
+    // Verify clicking the first suggested prompt in that language produces a non-empty localized response
+    const promptQuery = cfg.suggestedPrompts[0];
+    const result = generateOfflineChatReply(promptQuery, lang.code, sampleProfile, GOV_SCHEMES);
+    assert.ok(result.reply.length > 20, `Reply for ${lang.nameEn} (${lang.code}) should be detailed`);
+  }
+
+  // Verify specific native script topic detection across diverse scripts
+  assert.equal(detectQueryTopicIn22Languages('প্রধানমন্ত্রী কিষাণ সম্মান নিধি').isFarmer, true);
+  assert.equal(detectQueryTopicIn22Languages('முதியோர் ஓய்வூதியம் மற்றும் விதவை ஓய்வூதியம்').isPension, true);
+  assert.equal(detectQueryTopicIn22Languages('छात्रवृत्ति योजना').isStudent, true);
+  assert.equal(detectQueryTopicIn22Languages('آشرواد اسکیم شگن').isWomen, true);
+});
+
 

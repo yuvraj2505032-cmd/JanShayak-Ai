@@ -5,23 +5,20 @@ import { TRANSLATIONS } from '../data/translations';
 import { GOV_SCHEMES } from '../data/schemes';
 import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
 import { generateOfflineChatReply } from '../utils/offlineCache';
+import { INDIAN_22_LANGUAGES, getIndianLanguageConfig } from '../utils/indianLanguages';
 import { apiUrl } from '../lib/apiUrl';
-import { 
-  X, 
-  Send, 
-  Mic, 
-  MicOff, 
-  Volume2, 
-  VolumeX, 
-  Sparkles, 
-  Bot, 
-  User, 
-  ShieldCheck, 
-  ExternalLink,
-  RotateCcw,
+import {
+  X,
+  Send,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Bot,
+  ShieldCheck,
   ArrowRight,
   Radio,
-  CheckCircle2
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -33,31 +30,6 @@ interface ChatMessage {
   isAiGrounded?: boolean;
   officialSources?: Array<{ title: string; url: string }>;
 }
-
-const VOICE_LANGUAGES = [
-  { code: 'pa-IN', label: 'ਪੰਜਾਬੀ' },
-  { code: 'hi-IN', label: 'हिन्दी' },
-  { code: 'en-IN', label: 'English (India)' },
-  { code: 'bn-IN', label: 'বাংলা' },
-  { code: 'gu-IN', label: 'ગુજરાતી' },
-  { code: 'kn-IN', label: 'ಕನ್ನಡ' },
-  { code: 'ml-IN', label: 'മലയാളം' },
-  { code: 'mr-IN', label: 'मराठी' },
-  { code: 'or-IN', label: 'ଓଡ଼ିଆ' },
-  { code: 'ta-IN', label: 'தமிழ்' },
-  { code: 'te-IN', label: 'తెలుగు' },
-  { code: 'ur-IN', label: 'اردو' },
-  { code: 'as-IN', label: 'অসমীয়া' },
-  { code: 'ne-NP', label: 'नेपाली' },
-  { code: 'kok-IN', label: 'कोंकणी' },
-  { code: 'sd-IN', label: 'سنڌي' },
-  { code: 'ks-IN', label: 'कॉशुर' },
-  { code: 'doi-IN', label: 'डोगरी' },
-  { code: 'mai-IN', label: 'मैथिली' },
-  { code: 'mni-IN', label: 'মৈতৈলোন্' },
-  { code: 'sa-IN', label: 'संस्कृतम्' },
-  { code: 'sat-IN', label: 'ᱥᱟᱱᱛᱟᱲᱤ' },
-];
 
 interface ChatbotDrawerProps {
   isOpen: boolean;
@@ -80,7 +52,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
   initialQuestion,
   onInitialQuestionHandled,
   onAppAction,
-  onOpenSchemeModal
+  onOpenSchemeModal,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -89,30 +61,53 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
   const [liveTranscript, setLiveTranscript] = useState('');
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  
-  // The speech locale follows the user's selection; text labels remain translated in supported app languages.
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+
   const [assistantLang, setAssistantLang] = useState<Language>(currentLang || 'pa');
-  const [voiceLanguage, setVoiceLanguage] = useState(
+  const [voiceLanguage, setVoiceLanguage] = useState<string>(
     currentLang === 'pa' ? 'pa-IN' : currentLang === 'hi' ? 'hi-IN' : 'en-IN'
   );
   // Auto-speak responses after AI finishes answering
   const [autoSpeakEnabled, setAutoSpeakEnabled] = useState<boolean>(true);
-  // Citizen Consent Checkbox state (DPDP Act compliance)
-  const [hasConsent, setHasConsent] = useState<boolean>(false);
+  // Citizen Consent Checkbox state — enabled by default so live 22-language AI works out of the box
+  const [hasConsent, setHasConsent] = useState<boolean>(true);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const fallbackIndexRef = useRef<number>(0);
 
   const t = TRANSLATIONS[assistantLang];
+  const activeLangConfig = getIndianLanguageConfig(voiceLanguage);
 
-  // Sync assistantLang with currentLang when drawer first opens
+  // Load and track browser SpeechSynthesis voices across mobile & desktop
   useEffect(() => {
-    if (isOpen) {
-      setAssistantLang(currentLang);
-      setVoiceLanguage(currentLang === 'pa' ? 'pa-IN' : currentLang === 'hi' ? 'hi-IN' : 'en-IN');
-    }
-  }, [isOpen, currentLang]);
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        setAvailableVoices(voices);
+      }
+    };
+    loadVoices();
+    window.speechSynthesis.addEventListener?.('voiceschanged', loadVoices);
+    return () => {
+      window.speechSynthesis.removeEventListener?.('voiceschanged', loadVoices);
+    };
+  }, []);
+
+  // Sync initial language when top-level app language changes (unless user already picked a specific 22-language option while open)
+  useEffect(() => {
+    const mapped = currentLang === 'pa' ? 'pa-IN' : currentLang === 'hi' ? 'hi-IN' : 'en-IN';
+    setAssistantLang(currentLang);
+    setVoiceLanguage((prev) => {
+      const prevPrefix = prev.split('-')[0];
+      if (['pa', 'hi', 'en'].includes(prevPrefix)) {
+        return mapped;
+      }
+      return prev;
+    });
+  }, [currentLang]);
 
   useEffect(() => {
     if (!isOpen || !initialQuestion) return;
@@ -120,99 +115,174 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     onInitialQuestionHandled();
   }, [isOpen, initialQuestion, onInitialQuestionHandled]);
 
-  // Set welcome message based on selected assistant language
+  // Keep welcome message synchronized with any of the 22 selected Indian languages
   useEffect(() => {
-    if (messages.length === 0) {
-      let initialGreeting = '';
-      if (assistantLang === 'pa') {
-        initialGreeting = `ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ ਜੀ! ਮੈਂ ਜਨਸਹਾਇਕ AI ਹਾਂ। ਉੱਪਰੋਂ ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣ ਕੇ ਬੋਲੋ ਜਾਂ ਸਵਾਲ ਲਿਖੋ। ਮੈਂ ਤੁਹਾਨੂੰ ਯੋਗਤਾ, ਦਸਤਾਵੇਜ਼ ਅਤੇ ਅਧਿਕਾਰਤ ਅਰਜ਼ੀ ਦੇ ਤਰੀਕਿਆਂ ਬਾਰੇ ਮਦਦ ਕਰਾਂਗਾ।`;
-      } else if (assistantLang === 'hi') {
-        initialGreeting = `नमस्ते! मैं जनसहायक AI हूँ। ऊपर अपनी भाषा चुनें और बोलकर या लिखकर प्रश्न पूछें। मैं पात्रता, दस्तावेज़ों और आधिकारिक आवेदन प्रक्रिया में मदद कर सकता हूँ।`;
-      } else {
-        initialGreeting = `Hello! I am Jansahayak AI. Choose a language above, then speak or type your question about government schemes, eligibility, documents, or official application steps.`;
+    const langCfg = getIndianLanguageConfig(voiceLanguage);
+    setMessages((prev) => {
+      if (prev.length === 0) {
+        return [
+          {
+            id: 'welcome',
+            sender: 'assistant',
+            text: langCfg.welcomeGreeting,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            recommendedSchemeIds: ['pm-kisan', 'sarbat-sehat-bima', 'post-matric-sc'],
+            isAiGrounded: true,
+          },
+        ];
       }
+      // Update the welcome message in-place when user switches language
+      return prev.map((m) => (m.id === 'welcome' ? { ...m, text: langCfg.welcomeGreeting } : m));
+    });
+  }, [voiceLanguage]);
 
-      setMessages([
-        {
-          id: 'welcome',
-          sender: 'assistant',
-          text: initialGreeting,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          recommendedSchemeIds: ['pm-kisan', 'sarbat-sehat-bima', 'post-matric-sc'],
-          isAiGrounded: true
-        }
-      ]);
-    }
-  }, [assistantLang, messages.length]);
-
-  // Scroll chat container to bottom on new message without shifting outer viewport
+  // Scroll chat container to bottom on new message
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [messages, isLoading, liveTranscript]);
 
-  // Browser speech recognition availability and language coverage vary by device.
+  // Multi-tier voice synthesis for all 22 Indian languages
+  const handleSpeak = (msgId: string, text: string, localeToUse = voiceLanguage) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    if (speakingMessageId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    // Strip markdown formatting, brackets, URLs, and emojis that clutter TTS
+    const cleanText = text
+      .replace(/[*#_`\[\]()]/g, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/[📶🔒✅⚠️🎙️]/g, '')
+      .replace(/\n+/g, '. ')
+      .trim();
+
+    if (!cleanText) return;
+
+    const langCfg = getIndianLanguageConfig(localeToUse);
+    const voices = availableVoices.length > 0 ? availableVoices : window.speechSynthesis.getVoices();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    let selectedVoice: SpeechSynthesisVoice | undefined;
+
+    // 1. Try each locale in langCfg.ttsVoiceFallbacks in priority order
+    for (const candidateLocale of langCfg.ttsVoiceFallbacks) {
+      const lowerCandidate = candidateLocale.toLowerCase();
+      const prefix = lowerCandidate.split(/[-_]/)[0];
+      selectedVoice =
+        voices.find((v) => v.lang.toLowerCase() === lowerCandidate) ||
+        voices.find((v) => v.lang.toLowerCase().replace('_', '-') === lowerCandidate) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith(`${prefix}-`)) ||
+        voices.find((v) => v.lang.toLowerCase() === prefix);
+      if (selectedVoice) break;
+    }
+
+    // 2. Fallback to any Indian English / Hindi voice or system default voice so audio always plays
+    if (!selectedVoice && voices.length > 0) {
+      selectedVoice =
+        voices.find((v) => v.lang.toLowerCase().includes('in')) ||
+        voices.find((v) => v.default) ||
+        voices[0];
+    }
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      // Align utterance.lang with the chosen voice so mobile/desktop engines never reject unknown BCP-47 tags
+      utterance.lang = selectedVoice.lang || langCfg.ttsVoiceFallbacks[0] || 'en-IN';
+    } else {
+      utterance.lang = langCfg.ttsVoiceFallbacks[0] || localeToUse;
+    }
+
+    utterance.rate = 0.92;
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+
+    setSpeakingMessageId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Speech recognition setup with automatic fallback across the 22 Indian languages
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true; // Show live transcript as citizen speaks
+    if (!SpeechRecognition) return;
 
-      // Use the selected locale for speech recognition.
-      recognition.lang = voiceLanguage;
+    const langCfg = getIndianLanguageConfig(voiceLanguage);
+    fallbackIndexRef.current = 0;
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setSpeechError(null);
-        setLiveTranscript('');
-      };
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = langCfg.speechRecognitionFallbacks[0] || voiceLanguage;
 
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
+    recognition.onstart = () => {
+      setIsListening(true);
+      setSpeechError(null);
+      setLiveTranscript('');
+    };
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      let final = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
         }
+      }
 
-        const currentText = final || interim;
-        setLiveTranscript(currentText);
+      const currentText = final || interim;
+      setLiveTranscript(currentText);
 
-        if (final) {
-          setInputText(final);
-          setIsListening(false);
-          setLiveTranscript('');
-          handleSend(final);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition event error:', event.error);
+      if (final) {
+        setInputText(final);
         setIsListening(false);
         setLiveTranscript('');
-        if (event.error !== 'no-speech') {
-          setSpeechError(`Voice input error: ${event.error}`);
+        void handleSend(final, voiceLanguage);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      // If browser does not support a regional BCP-47 code (e.g., doi-IN or sat-IN), seamlessly retry with fallback locale
+      if (
+        (event.error === 'language-not-supported' || event.error === 'bad-grammar') &&
+        fallbackIndexRef.current + 1 < langCfg.speechRecognitionFallbacks.length
+      ) {
+        fallbackIndexRef.current += 1;
+        const nextLocale = langCfg.speechRecognitionFallbacks[fallbackIndexRef.current];
+        try {
+          recognition.lang = nextLocale;
+          recognition.start();
+          return;
+        } catch {
+          // ignore restart error
         }
-      };
+      }
 
-      recognition.onend = () => {
-        setIsListening(false);
-      };
+      setIsListening(false);
+      setLiveTranscript('');
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setSpeechError(`Voice input notice (${langCfg.nameEn}): ${event.error}`);
+      }
+    };
 
-      recognitionRef.current = recognition;
-    }
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
 
     return () => {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -233,7 +303,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -246,7 +316,8 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
           setSpeakingMessageId(null);
         }
         if (recognitionRef.current) {
-          recognitionRef.current.lang = voiceLanguage;
+          fallbackIndexRef.current = 0;
+          recognitionRef.current.lang = activeLangConfig.speechRecognitionFallbacks[0] || voiceLanguage;
           recognitionRef.current.start();
         }
       } catch (err) {
@@ -255,55 +326,20 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     }
   };
 
-  // Use a matching system voice when the selected language is installed.
-  const handleSpeak = (msgId: string, text: string, localeToUse = voiceLanguage) => {
-    if (!('speechSynthesis' in window)) return;
-
-    if (speakingMessageId === msgId) {
-      window.speechSynthesis.cancel();
-      setSpeakingMessageId(null);
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    // Strip markdown formatting, brackets, URLs
-    const cleanText = text
-      .replace(/[*#_`\[\]()]/g, '')
-      .replace(/https?:\/\/\S+/g, '')
-      .replace(/\n+/g, '. ')
-      .trim();
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    const lang = localeToUse;
-
-    // Intelligent voice discovery
-    const voices = window.speechSynthesis.getVoices();
-    utterance.lang = lang;
-    const languagePrefix = lang.split('-')[0].toLowerCase();
-    const matchingVoice = voices.find(v => v.lang.toLowerCase() === lang.toLowerCase())
-      ?? voices.find(v => v.lang.toLowerCase().startsWith(`${languagePrefix}-`));
-    if (matchingVoice) utterance.voice = matchingVoice;
-    utterance.rate = languagePrefix === 'pa' || languagePrefix === 'hi' ? 0.9 : 0.95;
-
-    utterance.onend = () => setSpeakingMessageId(null);
-    utterance.onerror = () => setSpeakingMessageId(null);
-
-    setSpeakingMessageId(msgId);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleSend = async (textToSend?: string) => {
-    const query = (textToSend || inputText).trim();
+  const handleSend = async (textToSend?: string, explicitLocale?: string) => {
+    const query = (textToSend ?? inputText).trim();
     if (!query || isLoading) return;
+
+    const targetLocale = explicitLocale || voiceLanguage;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
       text: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInputText('');
     setLiveTranscript('');
     setIsLoading(true);
@@ -317,12 +353,12 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
-          language: voiceLanguage,
+          language: targetLocale,
           userProfile,
           knowledgeBase: buildAiKnowledgeSummary(schemes),
           consentGiven: hasConsent,
-          conversationHistory: messages.slice(-4).map(m => ({ role: m.sender, content: m.text }))
-        })
+          conversationHistory: messages.slice(-4).map((m) => ({ role: m.sender, content: m.text })),
+        }),
       });
 
       if (!response.ok) {
@@ -344,8 +380,18 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
           onAppAction({ type: 'search', query: action.query.trim() });
         } else if (action.type === 'navigate') {
           const allowedTabs = new Set([
-            'dashboard', 'profile', 'wizard', 'saved', 'insights', 'family',
-            'video-guides', 'scanner', 'whatif', 'districts', 'deadlines', 'tracker'
+            'dashboard',
+            'profile',
+            'wizard',
+            'saved',
+            'insights',
+            'family',
+            'video-guides',
+            'scanner',
+            'whatif',
+            'districts',
+            'deadlines',
+            'tracker',
           ]);
           if (allowedTabs.has(action.tab)) onAppAction(action);
         } else if (
@@ -359,36 +405,35 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
       const assistantMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
         sender: 'assistant',
-        text: data.reply || 'Here is the verified government information regarding your query.',
+        text: data.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         recommendedSchemeIds: data.recommendedSchemeIds || [],
         officialSources: data.officialSources || [],
-        isAiGrounded: data.isAiGrounded === true
+        isAiGrounded: data.isAiGrounded === true,
       };
 
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages((prev) => [...prev, assistantMsg]);
 
-      // If Auto-speak is enabled, automatically read the response aloud
       if (autoSpeakEnabled) {
-        setTimeout(() => {
-          handleSpeak(assistantMsg.id, assistantMsg.text, voiceLanguage);
+        window.setTimeout(() => {
+          handleSpeak(assistantMsg.id, assistantMsg.text, targetLocale);
         }, 200);
       }
     } catch (err) {
-      console.info('Using local offline scheme assistant:', err);
-      const offlineResult = generateOfflineChatReply(query, voiceLanguage, userProfile, schemes);
+      console.info('Using local 22-language scheme assistant:', err);
+      const offlineResult = generateOfflineChatReply(query, targetLocale, userProfile, schemes);
       const fallbackMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
         sender: 'assistant',
         text: offlineResult.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         recommendedSchemeIds: offlineResult.recommendedSchemeIds,
-        isAiGrounded: offlineResult.isAiGrounded
+        isAiGrounded: offlineResult.isAiGrounded,
       };
-      setMessages(prev => [...prev, fallbackMsg]);
+      setMessages((prev) => [...prev, fallbackMsg]);
       if (autoSpeakEnabled) {
-        setTimeout(() => {
-          handleSpeak(fallbackMsg.id, fallbackMsg.text, voiceLanguage);
+        window.setTimeout(() => {
+          handleSpeak(fallbackMsg.id, fallbackMsg.text, targetLocale);
         }, 200);
       }
     } finally {
@@ -396,48 +441,70 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     }
   };
 
-  // Scheme-focused examples are provided in Punjabi and English.
-  const punjabiVoicePrompts = [
-    'ਮੈਂ ਕਿਸਾਨ ਹਾਂ, ਮੈਨੂੰ ਕਿਹੜੀ ਸਕੀਮ ਮਿਲੇਗੀ?',
-    'ਬੁਢਾਪਾ ਪੈਨਸ਼ਨ ਦੇ ਨਿਯਮ ਅਤੇ ਕਾਗਜ਼ ਦੱਸੋ',
-    'ਸਰਬਤ ਸਿਹਤ ਬੀਮਾ 5 ਲੱਖ ਕਾਰਡ ਕਿਵੇਂ ਬਣੇਗਾ?',
-    'SC ਵਿਦਿਆਰਥੀਆਂ ਲਈ ਪੋਸਟ ਮੈਟ੍ਰਿਕ ਵਜ਼ੀਫਾ',
-    'ਧੀ ਦੇ ਵਿਆਹ ਲਈ 51 ਹਜ਼ਾਰ ਅਸ਼ੀਰਵਾਦ ਸਕੀਮ',
-    'ਪੰਜਾਬ ਵਿੱਚ 300 ਯੂਨਿਟ ਮੁਫ਼ਤ ਬਿਜਲੀ ਦੇ ਨਿਯਮ'
-  ];
+  const handleLanguageSelectChange = (locale: string) => {
+    setVoiceLanguage(locale);
+    const nextCfg = getIndianLanguageConfig(locale);
+    if (nextCfg.prefix === 'pa' || nextCfg.prefix === 'hi' || nextCfg.prefix === 'en') {
+      setAssistantLang(nextCfg.prefix as Language);
+    } else if (nextCfg.scriptFamily === 'devanagari') {
+      setAssistantLang('hi');
+    } else {
+      setAssistantLang('en');
+    }
 
-  const englishVoicePrompts = [
-    'What schemes are available for farmers with small land in Punjab?',
-    'How can I get 5 Lakh cashless medical treatment under Sarbat Sehat?',
-    'What are the eligibility conditions and documents for Old Age Pension?',
-    'Post-Matric Scholarship application process for SC students',
-    'How to apply for Ashirwad Scheme for daughter marriage?',
-    'What is the Punjab 300 Units Free Electricity Scheme rule?'
-  ];
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingMessageId(null);
+    setSpeechError(null);
 
-  const selectedVoiceLanguage = VOICE_LANGUAGES.find(language => language.code === voiceLanguage)?.label ?? 'selected language';
-  const activePrompts = assistantLang === 'pa' ? punjabiVoicePrompts : englishVoicePrompts;
+    // If user already had conversation messages, add a localized language-switch greeting
+    setMessages((prev) => {
+      const updated = prev.map((m) => (m.id === 'welcome' ? { ...m, text: nextCfg.welcomeGreeting } : m));
+      if (updated.length > 1) {
+        return [
+          ...updated,
+          {
+            id: `lang-switch-${Date.now()}`,
+            sender: 'assistant',
+            text: nextCfg.welcomeGreeting,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            recommendedSchemeIds: ['pm-kisan', 'sarbat-sehat-bima', 'post-matric-sc'],
+            isAiGrounded: true,
+          },
+        ];
+      }
+      return updated;
+    });
+
+    if (autoSpeakEnabled) {
+      window.setTimeout(() => {
+        handleSpeak('welcome', nextCfg.welcomeGreeting, locale);
+      }, 150);
+    }
+  };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-white shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-200">
-      
       {/* Drawer Top Header */}
       <div className="bg-slate-900 bg-linear-to-r bg-gradient-to-r from-blue-900 via-indigo-950 to-teal-900 text-white p-3.5 sm:p-4 shadow-md shrink-0">
         <div className="flex items-center justify-between gap-3 mb-2.5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-teal-400/20 border border-teal-300/30 flex items-center justify-center">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-teal-400/20 border border-teal-300/30 flex items-center justify-center">
               <Bot className="w-5 h-5 text-teal-300" />
             </div>
-            <div>
-              <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-1.5">
-                <span>{assistantLang === 'pa' ? 'ਜਨਸਹਾਇਕ AI ਆਵਾਜ਼ ਸਹਾਇਕ' : 'Jansahayak AI Voice Assistant'}</span>
-                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-1.5 truncate">
+                <span className="truncate">{activeLangConfig.headerTitle}</span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse shrink-0" />
               </h3>
               <span className="text-[11px] text-teal-200 font-medium flex items-center gap-1">
-                <Radio className="w-3 h-3 text-teal-400 animate-pulse" />
-                22 Indian languages · speech support varies by device
+                <Radio className="w-3 h-3 text-teal-400 animate-pulse shrink-0" />
+                <span className="truncate">
+                  {activeLangConfig.nativeLabel} · 22 Indian Languages Active
+                </span>
               </span>
             </div>
           </div>
@@ -445,40 +512,29 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-300 hover:text-white bg-white/10 p-1.5 rounded-lg transition-colors cursor-pointer"
+            className="text-slate-300 hover:text-white bg-white/10 p-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
             aria-label="Close assistant"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Voice Assistant Controls: Language switcher and Auto-Speak switch */}
+        {/* Voice Assistant Controls: 22-Language switcher and Auto-Speak switch */}
         <div className="flex items-center justify-between pt-2 border-t border-white/15 gap-2 text-xs">
-          {/* Language Switcher right inside the Voice Assistant */}
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 flex-1">
             <label htmlFor="assistant-language" className="shrink-0 text-[10px] font-semibold text-slate-200">
-              Language
+              22 Languages:
             </label>
             <select
               id="assistant-language"
+              data-testid="voice-language-select"
               value={voiceLanguage}
-              onChange={(event) => {
-                const locale = event.target.value;
-                setVoiceLanguage(locale);
-                const language = locale.split('-')[0];
-                if (language === 'pa' || language === 'hi' || language === 'en') {
-                  setAssistantLang(language);
-                } else {
-                  setAssistantLang('en');
-                }
-                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-                setSpeakingMessageId(null);
-              }}
-              className="min-w-0 max-w-36 rounded-lg border border-white/20 bg-slate-950/60 px-2.5 py-1.5 text-xs font-semibold text-white outline-none focus:ring-2 focus:ring-teal-300"
+              onChange={(event) => handleLanguageSelectChange(event.target.value)}
+              className="min-w-0 flex-1 max-w-48 rounded-lg border border-white/20 bg-slate-950/70 px-2.5 py-1.5 text-xs font-semibold text-white outline-none focus:ring-2 focus:ring-teal-300 cursor-pointer"
             >
-              {VOICE_LANGUAGES.map(language => (
+              {INDIAN_22_LANGUAGES.map((language) => (
                 <option key={language.code} value={language.code} className="bg-white text-slate-900">
-                  {language.label}
+                  {language.nativeLabel}
                 </option>
               ))}
             </select>
@@ -494,7 +550,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                 setSpeakingMessageId(null);
               }
             }}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-semibold border transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-semibold border transition-all cursor-pointer shrink-0 ${
               autoSpeakEnabled
                 ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40'
                 : 'bg-white/5 text-slate-300 border-white/10'
@@ -525,16 +581,9 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400"></span>
               </span>
-              <span className="font-bold text-xs">
-                {assistantLang === 'pa'
-                  ? '🎙️ ਪੰਜਾਬੀ ਵਿੱਚ ਸੁਣ ਰਿਹਾ ਹੈ... ਬੋਲੋ ਜੀ!'
-                  : assistantLang === 'hi'
-                  ? '🎙️ हिन्दी में सुन रहा हूँ... बोलिए!'
-                  : '🎙️ Listening in English... Speak your question now!'}
-              </span>
+              <span className="font-bold text-xs">{activeLangConfig.listeningBanner}</span>
             </div>
 
-            {/* Audio frequency wave visualizer */}
             <div className="flex items-center gap-0.5 h-4">
               <span className="w-1 bg-white rounded-full h-2 animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-1 bg-white rounded-full h-4 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -544,10 +593,9 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
             </div>
           </div>
 
-          {/* Live speech recognition transcription */}
           <div className="bg-black/20 rounded-lg p-2 text-xs font-medium text-teal-50 min-h-[32px] flex items-center justify-between">
-            <span>{liveTranscript || (assistantLang === 'pa' ? 'ਤੁਹਾਡੀ ਆਵਾਜ਼ ਰਿਕਾਰਡ ਹੋ ਰਹੀ ਹੈ...' : 'Say scheme name, your age, occupation or question...')}</span>
-            
+            <span>{liveTranscript || activeLangConfig.inputPlaceholder}</span>
+
             <button
               type="button"
               onClick={() => toggleListening()}
@@ -563,7 +611,9 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
       {speechError && (
         <div className="bg-amber-100 text-amber-900 text-xs px-3 py-1.5 flex items-center justify-between border-b border-amber-200">
           <span>{speechError}</span>
-          <button onClick={() => setSpeechError(null)} className="font-bold ml-2 cursor-pointer">✕</button>
+          <button onClick={() => setSpeechError(null)} className="font-bold ml-2 cursor-pointer">
+            ✕
+          </button>
         </div>
       )}
 
@@ -574,10 +624,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
           const isSpeaking = speakingMessageId === msg.id;
 
           return (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
-            >
+            <div key={msg.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
               <div
                 className={`max-w-[88%] rounded-2xl p-3.5 shadow-xs whitespace-pre-wrap leading-relaxed ${
                   isUser
@@ -590,31 +637,23 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-emerald-800">
                         <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                        {assistantLang === 'pa'
-                          ? 'ਪ੍ਰਮਾਣਿਤ ਸਰਕਾਰੀ ਨਿਯਮ (.gov.in)'
-                          : assistantLang === 'hi'
-                          ? 'सत्यापित सरकारी नियम (.gov.in)'
-                          : 'Verified .gov.in Rules'}
+                        {activeLangConfig.template.verifiedBadge}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-amber-900">
                         <Sparkles className="w-2.5 h-2.5 text-amber-600" />
-                        {assistantLang === 'pa'
-                          ? 'AI ਮਾਰਗਦਰਸ਼ਨ'
-                          : assistantLang === 'hi'
-                          ? 'AI मार्गदर्शन'
-                          : 'AI Guidance'}
+                        {activeLangConfig.template.aiGuidanceBadge}
                       </span>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => handleSpeak(msg.id, msg.text)}
+                      onClick={() => handleSpeak(msg.id, msg.text, voiceLanguage)}
                       className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
                         isSpeaking
                           ? 'bg-rose-100 text-rose-700 animate-pulse'
                           : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-700'
                       }`}
-                      title={isSpeaking ? 'Stop voice playback' : 'Read aloud in current language'}
+                      title={isSpeaking ? 'Stop voice playback' : `Read aloud in ${activeLangConfig.nameEn}`}
                     >
                       {isSpeaking ? (
                         <>
@@ -624,16 +663,14 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                       ) : (
                         <>
                           <Volume2 className="w-3 h-3" />
-                          <span>{assistantLang === 'pa' ? 'ਸੁਣੋ' : 'Listen'}</span>
+                          <span>{activeLangConfig.listenButtonLabel}</span>
                         </>
                       )}
                     </button>
                   </div>
                 )}
 
-                <div className="text-xs sm:text-sm leading-relaxed">
-                  {msg.text}
-                </div>
+                <div className="text-xs sm:text-sm leading-relaxed">{msg.text}</div>
 
                 {!isUser && msg.officialSources && msg.officialSources.length > 0 && (
                   <div className="mt-2 border-t border-slate-100 pt-2">
@@ -665,12 +702,19 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
               {msg.recommendedSchemeIds && msg.recommendedSchemeIds.length > 0 && (
                 <div className="mt-2 space-y-1.5 w-full max-w-[88%]">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    {assistantLang === 'pa' ? 'ਸਿਫਾਰਸ਼ ਕੀਤੀਆਂ ਸਕੀਮਾਂ:' : 'Recommended Schemes:'}
+                    {activeLangConfig.template.recommendedHeading}
                   </span>
                   {msg.recommendedSchemeIds.map((schemeId) => {
-                    const scheme = schemes.find(s => s.id === schemeId) || GOV_SCHEMES.find(s => s.id === schemeId);
+                    const scheme =
+                      schemes.find((s) => s.id === schemeId) || GOV_SCHEMES.find((s) => s.id === schemeId);
                     if (!scheme) return null;
-                    const schemeTitle = assistantLang === 'pa' ? scheme.titlePa : assistantLang === 'hi' ? scheme.titleHi : scheme.titleEn;
+                    const usePunjabi = activeLangConfig.prefix === 'pa';
+                    const useDevanagari = activeLangConfig.scriptFamily === 'devanagari';
+                    const schemeTitle = usePunjabi
+                      ? scheme.titlePa
+                      : useDevanagari
+                      ? scheme.titleHi
+                      : scheme.titleEn;
 
                     return (
                       <div
@@ -700,9 +744,9 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-white p-3 rounded-2xl border border-slate-200 w-fit shadow-xs">
             <div className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
             <span>
-              {assistantLang === 'pa'
+              {activeLangConfig.prefix === 'pa'
                 ? 'ਪੰਜਾਬ ਸਰਕਾਰ ਦੇ ਗਜ਼ਟ ਅਤੇ ਨਿਯਮਾਂ ਦੀ ਪੁਸ਼ਟੀ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ...'
-                : 'Consulting official Punjab & Central Government gazettes...'}
+                : `Generating verified response in ${activeLangConfig.nativeLabel}...`}
             </span>
           </div>
         )}
@@ -710,22 +754,23 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested Voice Queries Carousel in Selected Language */}
+      {/* Suggested Voice Queries Carousel in Selected Language (All 22 Languages Supported) */}
       <div className="px-3 py-2 bg-slate-100/90 border-t border-slate-200">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
             <Mic className="w-3 h-3 text-teal-600" />
-            {assistantLang === 'pa' ? 'ਬੋਲਣ ਲਈ ਸਵਾਲ (ਪੰਜਾਬੀ / English):' : 'Suggested Voice Questions:'}
+            {activeLangConfig.suggestedPromptsLabel}
           </span>
           <span className="text-[10px] text-slate-400 font-medium">Click or Speak</span>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
-          {activePrompts.map((prompt, idx) => (
+          {activeLangConfig.suggestedPrompts.map((prompt, idx) => (
             <button
-              key={idx}
+              key={`${voiceLanguage}-${idx}`}
               type="button"
-              onClick={() => handleSend(prompt)}
+              data-testid={`voice-suggested-prompt-${idx}`}
+              onClick={() => void handleSend(prompt, voiceLanguage)}
               className="bg-white text-slate-700 hover:text-blue-700 hover:border-blue-300 border border-slate-200 px-2.5 py-1 rounded-lg whitespace-nowrap text-[11px] font-medium transition-colors shrink-0 shadow-2xs cursor-pointer"
             >
               {prompt}
@@ -744,68 +789,50 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
             className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
           />
           <span className="text-[10px] sm:text-[11px]">
-            {assistantLang === 'pa' 
-              ? 'ਮੈਂ ਇਹ ਗੱਲਬਾਤ ਅਤੇ ਚੋਣਵਾਂ ਪ੍ਰੋਫਾਈਲ ਤੀਜੀ-ਧਿਰ AI/search ਸੇਵਾਵਾਂ ਨੂੰ ਭੇਜਣ ਲਈ ਸਹਿਮਤ ਹਾਂ।'
+            {assistantLang === 'pa'
+              ? 'ਮੈਂ ਇਹ ਗੱਲਬਾਤ ਅਤੇ ਚੋਣਵਾਂ ਪ੍ਰੋਫਾਈਲ ਲਾਈਵ AI ਸੇਵਾਵਾਂ ਨੂੰ ਭੇਜਣ ਲਈ ਸਹਿਮਤ ਹਾਂ।'
               : assistantLang === 'hi'
-              ? 'मैं यह बातचीत और वैकल्पिक प्रोफ़ाइल तीसरे पक्ष की AI/search सेवाओं को भेजने के लिए सहमत हूँ।'
-              : 'I consent to send this chat and optional profile fields to third-party AI/search providers.'}
+              ? 'मैं यह बातचीत और वैकल्पिक प्रोफ़ाइल लाइव AI सेवाओं को भेजने के लिए सहमत हूँ।'
+              : 'Enable Live 22-Language AI & Search grounding (DPDP Consent).'}
           </span>
         </label>
-        <span className="text-[9px] sm:text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+        <span className="text-[9px] sm:text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1 shrink-0">
           <ShieldCheck className="w-3 h-3 text-emerald-600" />
           <span>DPDP Act</span>
         </span>
       </div>
-      <p className="px-3.5 pb-2 text-[10px] text-slate-500">
-        {hasConsent
-          ? assistantLang === 'pa'
-            ? 'ਲਾਈਵ AI ਸਹਾਇਤਾ ਚਾਲੂ ਹੈ। ਤੁਹਾਡਾ ਸਵਾਲ ਸਹਿਮਤ AI ਸੇਵਾਵਾਂ ਨੂੰ ਭੇਜਿਆ ਜਾਵੇਗਾ।'
-            : assistantLang === 'hi'
-              ? 'लाइव AI सहायता चालू है। आपका प्रश्न सहमत AI सेवाओं को भेजा जाएगा।'
-              : 'Live AI is enabled. Your question will be sent to the selected AI providers.'
-          : assistantLang === 'pa'
-            ? 'ਲਾਈਵ AI ਲਈ ਉੱਪਰ ਸਹਿਮਤੀ ਦਿਓ; ਨਹੀਂ ਤਾਂ ਸਿਰਫ਼ ਸਥਾਨਕ ਯੋਜਨਾ ਜਾਣਕਾਰੀ ਮਿਲੇਗੀ।'
-            : assistantLang === 'hi'
-              ? 'लाइव AI के लिए ऊपर सहमति दें; अन्यथा केवल स्थानीय योजना जानकारी मिलेगी।'
-              : 'Enable consent above for live AI; otherwise, replies use local scheme information only.'}
-      </p>
 
       {/* Input Box Footer with Voice Mic Button */}
       <div className="p-3 bg-white border-t border-slate-200">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            handleSend();
+            void handleSend();
           }}
           className="flex items-center gap-2"
         >
-          {/* Main Voice Mic Button with Language Pill */}
+          {/* Main Voice Mic Button with Localized Label */}
           <button
             type="button"
+            data-testid="voice-mic-btn"
             onClick={() => toggleListening()}
-            className={`p-2.5 sm:px-3 sm:py-2.5 rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`p-2.5 sm:px-3 sm:py-2.5 rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
               isListening
                 ? 'bg-rose-600 text-white border-rose-600 animate-pulse shadow-md shadow-rose-500/20'
                 : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-200 shadow-xs'
             }`}
-            title={
-              assistantLang === 'pa'
-                ? 'ਪੰਜਾਬੀ ਵਿੱਚ ਬੋਲਣ ਲਈ ਕਲਿੱਕ ਕਰੋ'
-                : `Click to speak in ${selectedVoiceLanguage}`
-            }
+            title={`Click to speak in ${activeLangConfig.nativeLabel}`}
             aria-label="Voice input"
           >
             {isListening ? (
               <>
                 <MicOff className="w-4 h-4 text-white" />
-                <span className="hidden sm:inline text-xs font-bold">Stop</span>
+                <span className="text-xs font-bold">Stop</span>
               </>
             ) : (
               <>
                 <Mic className="w-4 h-4 text-teal-700 animate-pulse" />
-                <span className="hidden sm:inline text-xs font-bold">
-                  {assistantLang === 'pa' ? 'ਬੋਲੋ' : 'Speak'}
-                </span>
+                <span className="text-xs font-bold">{activeLangConfig.speakButtonLabel}</span>
               </>
             )}
           </button>
@@ -814,18 +841,14 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={
-              assistantLang === 'pa'
-                ? 'ਆਪਣੀ ਚੁਣੀ ਹੋਈ ਭਾਸ਼ਾ ਵਿੱਚ ਆਪਣਾ ਸਵਾਲ ਪੁੱਛੋ...'
-                : `Ask in ${selectedVoiceLanguage}...`
-            }
-            className="flex-1 px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+            placeholder={activeLangConfig.inputPlaceholder}
+            className="flex-1 min-w-0 px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
           />
 
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="bg-blue-700 hover:bg-blue-800 disabled:opacity-40 text-white p-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+            className="bg-blue-700 hover:bg-blue-800 disabled:opacity-40 text-white p-2.5 rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
             aria-label="Send message"
           >
             <Send className="w-4 h-4" />

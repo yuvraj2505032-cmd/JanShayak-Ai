@@ -1,5 +1,6 @@
 import type { CitizenProfile, Language, Scheme } from '../types/scheme';
 import { evaluateAllSchemes, evaluateSchemeEligibility } from './schemeEngine';
+import { getIndianLanguageConfig, detectQueryTopicIn22Languages } from './indianLanguages';
 
 const OFFLINE_CACHE_KEYS = {
   recentlyViewed: 'janshayak_recently_viewed_offline_v1',
@@ -77,46 +78,40 @@ export function generateOfflineChatReply(
   profile: CitizenProfile,
   schemes: Scheme[]
 ): OfflineChatResult {
-  const langPrefix = String(languageCode || 'en').toLowerCase().split(/[-_]/)[0];
+  const langConfig = getIndianLanguageConfig(languageCode);
+  const langPrefix = langConfig.prefix;
   const q = query.trim().toLowerCase();
   const words = q
     .replace(/[?.,!;:()"']/g, ' ')
     .split(/\s+/)
     .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
 
-  const isFarmerQuery = /farmer|kisan|crop|agriculture|ਕਿਸਾਨ|ਖੇਤੀ|किसान|कृषि/.test(q);
-  const isStudentQuery = /student|scholar|matric|college|school|education|ਵਿਦਿਆਰਥੀ|ਵਜ਼ੀਫਾ|छात्र|छात्रवृत्ति/.test(q);
-  const isWomenQuery = /women|woman|girl|ashirwad|shagun|marriage|widow|ujjwala|sukanya|ਔਰਤ|ਸ਼ਗਨ|ਵਿਆਹ|ਧੀ|महिला|विवाह|बेटी/.test(q);
-  const isPensionQuery = /pension|old age|senior|ਬੁਢਾਪਾ|ਪੈਨਸ਼ਨ|ਬਜ਼ੁਰਗ|पेंशन|वृद्ध/.test(q);
-  const isHealthQuery = /health|medical|hospital|sehat|ayushman|bima|treatment|ਸਿਹਤ|ਇਲਾਜ|ਬੀਮਾ|स्वास्थ्य|इलाज/.test(q);
-  const isElectricityQuery = /electricity|bijli|300|power|ਬਿਜਲੀ|ਯੂਨਿਟ|बिजली/.test(q);
-  const isHousingQuery = /house|housing|awas|home|ਮਕਾਨ|ਘਰ|आवास|मकान/.test(q);
-  const isLoanQuery = /loan|mudra|business|svanidhi|vishwakarma|ਕਰਜ਼ਾ|ਕਾਰੋਬਾਰ|ऋण|लोन/.test(q);
+  const topic = detectQueryTopicIn22Languages(q);
 
   let matched = schemes.filter((s) => {
     const tagsLower = s.categoryTags.map((t) => t.toLowerCase()).join(' ');
-    if (isFarmerQuery && (s.id.includes('kisan') || s.id.includes('crop') || s.id.includes('dsr') || tagsLower.includes('agriculture') || s.eligibleOccupations?.includes('Farmer'))) {
+    if (topic.isFarmer && (s.id.includes('kisan') || s.id.includes('crop') || s.id.includes('dsr') || tagsLower.includes('agriculture') || s.eligibleOccupations?.includes('Farmer'))) {
       return true;
     }
-    if (isStudentQuery && (s.id.includes('matric') || s.benefitType === 'Scholarship' || tagsLower.includes('education') || tagsLower.includes('student'))) {
+    if (topic.isStudent && (s.id.includes('matric') || s.benefitType === 'Scholarship' || tagsLower.includes('education') || tagsLower.includes('student'))) {
       return true;
     }
-    if (isWomenQuery && (s.id.includes('ashirwad') || s.id.includes('widow') || s.id.includes('ujjwala') || s.id.includes('sukanya') || s.id.includes('mahila') || tagsLower.includes('women'))) {
+    if (topic.isWomen && (s.id.includes('ashirwad') || s.id.includes('widow') || s.id.includes('ujjwala') || s.id.includes('sukanya') || s.id.includes('mahila') || tagsLower.includes('women'))) {
       return true;
     }
-    if (isPensionQuery && (s.id.includes('pension') || s.benefitType === 'Pension')) {
+    if (topic.isPension && (s.id.includes('pension') || s.benefitType === 'Pension')) {
       return true;
     }
-    if (isHealthQuery && (s.id.includes('sehat') || s.id.includes('ayushman') || tagsLower.includes('health'))) {
+    if (topic.isHealth && (s.id.includes('sehat') || s.id.includes('ayushman') || tagsLower.includes('health'))) {
       return true;
     }
-    if (isElectricityQuery && s.id.includes('electricity')) {
+    if (topic.isElectricity && s.id.includes('electricity')) {
       return true;
     }
-    if (isHousingQuery && (s.id.includes('awas') || tagsLower.includes('housing'))) {
+    if (topic.isHousing && (s.id.includes('awas') || tagsLower.includes('housing'))) {
       return true;
     }
-    if (isLoanQuery && (s.id.includes('mudra') || s.id.includes('svanidhi') || s.id.includes('vishwakarma') || s.benefitType === 'Loan/Credit')) {
+    if (topic.isLoan && (s.id.includes('mudra') || s.id.includes('svanidhi') || s.id.includes('vishwakarma') || s.benefitType === 'Loan/Credit')) {
       return true;
     }
     return false;
@@ -145,64 +140,37 @@ export function generateOfflineChatReply(
   }
 
   const recommendedSchemeIds = matched.map((s) => s.id);
-
-  if (langPrefix === 'pa') {
-    const body = matched
-      .map(
-        (s, idx) =>
-          `${idx + 1}. ${s.titlePa} (${s.level}):\n` +
-          `• ਲਾਭ: ${s.benefitAmountText}\n` +
-          `• ਲੋੜੀਂਦੇ ਦਸਤਾਵੇਜ਼: ${s.requiredDocuments.slice(0, 3).map((d) => d.namePa || d.nameEn).join(', ')}\n` +
-          `• ਅਧਿਕਾਰਤ ਪੋਰਟਲ: ${s.officialPortalUrl}`
-      )
-      .join('\n\n');
-
-    return {
-      reply:
-        `📶 ਆਫ਼ਲਾਈਨ ਮੋਡ (Offline AI ਸਹਾਇਕ): ਤੁਹਾਡੇ ਪ੍ਰੋਫਾਈਲ (${profile.occupation}, ਉਮਰ ${profile.age}) ਅਤੇ ਸਵਾਲ ਅਨੁਸਾਰ ਪ੍ਰਮਾਣਿਤ ਸਰਕਾਰੀ ਸਕੀਮਾਂ:\n\n` +
-        body +
-        `\n\n🔒 ਸੁਰੱਖਿਆ ਸੂਚਨਾ: ਸਾਰੀਆਂ ਸਰਕਾਰੀ ਸਕੀਮਾਂ ਲਈ ਅਰਜ਼ੀ ਬਿਲਕੁਲ ਮੁਫ਼ਤ ਹੈ। ਨੇੜਲੇ ਪੰਜਾਬ ਸੇਵਾ ਕੇਂਦਰ ਜਾਓ ਜਾਂ ਟੋਲ-ਫ੍ਰੀ ਹੈਲਪਲਾਈਨ 1100 'ਤੇ ਕਾਲ ਕਰੋ।`,
-      recommendedSchemeIds,
-      isAiGrounded: true,
-    };
-  }
-
-  if (langPrefix === 'hi') {
-    const body = matched
-      .map(
-        (s, idx) =>
-          `${idx + 1}. ${s.titleHi} (${s.level}):\n` +
-          `• प्रमुख लाभ: ${s.benefitAmountText}\n` +
-          `• आवश्यक दस्तावेज़: ${s.requiredDocuments.slice(0, 3).map((d) => d.nameHi || d.nameEn).join(', ')}\n` +
-          `• आधिकारिक पोर्टल: ${s.officialPortalUrl}`
-      )
-      .join('\n\n');
-
-    return {
-      reply:
-        `📶 ऑफ़लाइन मोड (Offline AI सहायक): आपकी प्रोफ़ाइल (${profile.occupation}, आयु ${profile.age}) और प्रश्न के अनुसार प्रमुख सरकारी योजनाएं:\n\n` +
-        body +
-        `\n\n🔒 सुरक्षा सूचना: सभी सरकारी योजनाएं 100% निःशुल्क हैं। नजदीकी सेवा केंद्र जाएं या हेल्पलाइन 1100 पर कॉल करें।`,
-      recommendedSchemeIds,
-      isAiGrounded: true,
-    };
-  }
+  const usePunjabi = langPrefix === 'pa';
+  const useDevanagariTitle = ['hi', 'mr', 'ne', 'kok', 'ks', 'doi', 'mai', 'sa'].includes(langPrefix);
 
   const body = matched
-    .map(
-      (s, idx) =>
-        `${idx + 1}. ${s.titleEn} (${s.level}):\n` +
-        `• Benefit: ${s.benefitAmountText}\n` +
-        `• Key Documents: ${s.requiredDocuments.slice(0, 3).map((d) => d.nameEn).join(', ')}\n` +
-        `• Official Portal: ${s.officialPortalUrl}`
-    )
+    .map((s, idx) => {
+      const schemeTitle = usePunjabi ? s.titlePa : useDevanagariTitle ? `${s.titleHi} (${s.titleEn})` : s.titleEn;
+      const docs = s.requiredDocuments
+        .slice(0, 3)
+        .map((d) => (usePunjabi ? d.namePa || d.nameEn : useDevanagariTitle ? d.nameHi || d.nameEn : d.nameEn))
+        .join(', ');
+      return (
+        `${idx + 1}. ${schemeTitle} (${s.level}):\n` +
+        `• ${langConfig.template.benefitLabel}: ${s.benefitAmountText}\n` +
+        `• ${langConfig.template.docsLabel}: ${docs}\n` +
+        `• ${langConfig.template.portalLabel}: ${s.officialPortalUrl}`
+      );
+    })
     .join('\n\n');
+
+  const offlineTag =
+    langPrefix === 'pa'
+      ? '(ਆਫ਼ਲਾਈਨ ਮੋਡ)'
+      : langPrefix === 'hi'
+        ? '(ऑफ़लाइन मोड)'
+        : '(Offline Mode)';
 
   return {
     reply:
-      `📶 Offline Mode (Local Scheme Engine): Based on your question and profile (${profile.occupation}, Age ${profile.age}, ${profile.district}), here are the top verified government schemes:\n\n` +
+      `${langConfig.template.intro(profile.occupation, profile.age, profile.district)} ${offlineTag}\n\n` +
       body +
-      `\n\n🔒 Citizen Fraud Shield: All official government scheme applications are 100% free of charge. Visit your nearest Punjab Sewa Kendra or call Helpline 1100.`,
+      `\n\n${langConfig.template.fraudWarning}`,
     recommendedSchemeIds,
     isAiGrounded: true,
   };
