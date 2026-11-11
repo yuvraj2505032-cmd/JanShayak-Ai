@@ -1127,6 +1127,125 @@ app.post('/api/ai/document-scanner', async (req, res) => {
   }
 });
 
+// API Route: Download Standalone Offline Janshayak AI Application Package
+app.get('/api/download-app', (req, res) => {
+  try {
+    const hostOrigin = `${req.protocol}://${req.get('host')}`;
+    const embeddedSchemes = JSON.stringify(
+      GOV_SCHEMES.map((s) => ({
+        id: s.id,
+        title: { en: s.titleEn, pa: s.titlePa, hi: s.titleHi },
+        department: { en: s.departmentEn, pa: s.departmentPa, hi: s.departmentHi },
+        benefits: {
+          en: `${s.benefitAmountText} — ${s.descriptionEn}`,
+          pa: `${s.benefitAmountText} — ${s.descriptionPa}`,
+          hi: `${s.benefitAmountText} — ${s.descriptionHi}`,
+        },
+        officialWebsite: s.officialPortalUrl,
+        helpline: '1100',
+        documents: (s.requiredDocuments || []).map((d) => ({
+          en: d.nameEn,
+          pa: d.namePa,
+          hi: d.nameHi,
+        })),
+      }))
+    );
+
+    const standaloneHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Janshayak AI — Offline Citizen Welfare App</title>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #2563eb; --teal: #0d9488; }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: #f8fafc; color: #0f172a; padding-bottom: 48px; }
+    header { background: linear-gradient(135deg, #0f172a, #1e3a8a, #115e59); color: #fff; padding: 18px 16px; position: sticky; top: 0; z-index: 20; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+    .container { max-width: 980px; margin: 0 auto; padding: 0 14px; }
+    .top-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+    .brand { font-size: 20px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+    .badge { background: rgba(16,185,129,0.2); border: 1px solid rgba(52,211,153,0.4); color: #6ee7b7; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+    .lang-group button { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 6px 11px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer; margin-left: 4px; }
+    .lang-group button.active { background: #2563eb; border-color: #60a5fa; }
+    .search-bar { margin-top: 14px; display: flex; gap: 8px; }
+    .search-bar input { flex: 1; padding: 12px 14px; border-radius: 12px; border: none; font-size: 14px; outline: none; }
+    .live-btn { display: inline-flex; align-items: center; gap: 6px; background: #10b981; color: #052e16; font-weight: 800; font-size: 12px; padding: 10px 14px; border-radius: 12px; text-decoration: none; white-space: nowrap; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; margin-top: 18px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; box-shadow: 0 2px 8px rgba(15,23,42,0.04); display: flex; flex-direction: column; justify-content: space-between; }
+    .card h3 { margin: 6px 0 8px; font-size: 16px; color: #0f172a; }
+    .dept { font-size: 11px; font-weight: 800; color: #0d9488; text-transform: uppercase; }
+    .benefit { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 600; margin: 8px 0; }
+    .docs { font-size: 12px; color: #475569; margin: 6px 0 12px; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+    .portal-link { background: #1d4ed8; color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+    .helpline { font-size: 11px; font-weight: 700; color: #64748b; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="top-row">
+        <div class="brand">
+          <span>Janshayak AI</span>
+          <span class="badge">100% Offline App Ready</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div class="lang-group">
+            <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
+            <button id="btn-pa" onclick="setLang('pa')">ਪੰਜਾਬੀ</button>
+            <button id="btn-hi" onclick="setLang('hi')">हिंदी</button>
+          </div>
+          <a class="live-btn" href="${hostOrigin}" target="_blank" rel="noopener">Open Full Live App ↗</a>
+        </div>
+      </div>
+      <div class="search-bar">
+        <input id="q" type="search" placeholder="Search schemes offline (e.g., Kisan, Scholarship, Pension, Ashirwad)..." oninput="render()" />
+      </div>
+    </div>
+  </header>
+  <main class="container">
+    <p id="count" style="font-size:13px;font-weight:700;color:#475569;margin-top:16px;"></p>
+    <div id="list" class="grid"></div>
+  </main>
+  <script>
+    const SCHEMES = ${embeddedSchemes};
+    let lang = 'en';
+    function setLang(l) {
+      lang = l;
+      ['en','pa','hi'].forEach(k => document.getElementById('btn-'+k).classList.toggle('active', k===l));
+      render();
+    }
+    function render() {
+      const q = (document.getElementById('q').value || '').toLowerCase().trim();
+      const filtered = SCHEMES.filter(s => {
+        if (!q) return true;
+        return JSON.stringify(s).toLowerCase().includes(q);
+      });
+      document.getElementById('count').textContent = 'Showing ' + filtered.length + ' verified government schemes (Available 100% Offline)';
+      const html = filtered.map(s => {
+        const title = (s.title && (s.title[lang] || s.title.en)) || '';
+        const dept = (s.department && (s.department[lang] || s.department.en)) || '';
+        const ben = (s.benefits && (s.benefits[lang] || s.benefits.en)) || '';
+        const docs = (s.documents || []).map(d => d[lang] || d.en).join(', ');
+        return '<div class="card"><div><div class="dept">' + dept + '</div><h3>' + title + '</h3><div class="benefit">' + ben + '</div><div class="docs"><strong>Documents:</strong> ' + docs + '</div></div><div class="card-footer"><span class="helpline">Helpline: ' + s.helpline + '</span><a class="portal-link" href="' + s.officialWebsite + '" target="_blank" rel="noopener">Official Portal ↗</a></div></div>';
+      }).join('');
+      document.getElementById('list').innerHTML = html;
+    }
+    render();
+  </script>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="Janshayak-AI-Offline-App.html"');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).send(standaloneHtml);
+  } catch (error) {
+    console.error('Download offline app error:', error);
+    return res.status(500).send('Failed to generate offline app');
+  }
+});
 
 // Serve frontend in dev via Vite middlewares, or static dist in prod
 async function setupServer() {
