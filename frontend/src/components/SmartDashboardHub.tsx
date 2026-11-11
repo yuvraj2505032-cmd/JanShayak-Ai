@@ -79,7 +79,9 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
   onToggleAiAutoSync,
   latestAutoAddedTitle,
 }) => {
-  const [isFilterExpanded, setIsFilterExpanded] = useState(true);
+  const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 640 : true
+  );
   const [quickAiTopic, setQuickAiTopic] = useState('');
   const [syncNotice, setSyncNotice] = useState('');
   const activeFilterCount = countActiveAdvancedFilters(advancedFilters);
@@ -103,35 +105,35 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
       labelEn: 'All Citizens',
       labelPa: 'ਸਾਰੇ ਨਾਗਰਿਕ',
       labelHi: 'सभी नागरिक',
-      icon: <Landmark className="h-3.5 w-3.5" />,
+      icon: <Landmark className="h-3.5 w-3.5 shrink-0" />,
     },
     {
       id: 'women',
       labelEn: 'Women & Girls',
       labelPa: 'ਔਰਤਾਂ ਅਤੇ ਧੀਆਂ',
       labelHi: 'महिलाएं और बेटियां',
-      icon: <HeartHandshake className="h-3.5 w-3.5" />,
+      icon: <HeartHandshake className="h-3.5 w-3.5 shrink-0" />,
     },
     {
       id: 'students',
       labelEn: 'Students & Youth',
       labelPa: 'ਵਿਦਿਆਰਥੀ',
       labelHi: 'छात्र और युवा',
-      icon: <GraduationCap className="h-3.5 w-3.5" />,
+      icon: <GraduationCap className="h-3.5 w-3.5 shrink-0" />,
     },
     {
       id: 'farmers',
       labelEn: 'Farmers (Kisan)',
       labelPa: 'ਕਿਸਾਨ',
       labelHi: 'किसान',
-      icon: <Sprout className="h-3.5 w-3.5" />,
+      icon: <Sprout className="h-3.5 w-3.5 shrink-0" />,
     },
     {
       id: 'business',
       labelEn: 'Business & Artisans',
       labelPa: 'ਕਾਰੋਬਾਰ / ਕਾਰੀਗਰ',
       labelHi: 'व्यवसाय और कारीगर',
-      icon: <Briefcase className="h-3.5 w-3.5" />,
+      icon: <Briefcase className="h-3.5 w-3.5 shrink-0" />,
     },
   ];
 
@@ -154,17 +156,17 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
   };
 
   return (
-    <div className="mb-8 space-y-5" data-testid="smart-dashboard-hub">
+    <div className="mb-6 sm:mb-8 space-y-4 sm:space-y-5" data-testid="smart-dashboard-hub">
       {/* 0. AI Autonomous Scheme Discovery Bar: Auto-Add New (2025-26) + All 36 States + Purani Schemes */}
       <div
         data-testid="ai-autonomous-sync-bar"
-        className="rounded-2xl border border-blue-200/90 bg-slate-900 bg-linear-to-r bg-gradient-to-r from-slate-900 via-blue-950 to-teal-950 p-4 text-white shadow-md"
+        className="rounded-2xl border border-blue-200/90 bg-slate-900 bg-linear-to-r bg-gradient-to-r from-slate-900 via-blue-950 to-teal-950 p-3.5 sm:p-4 text-white shadow-md"
       >
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col justify-between gap-3.5 lg:flex-row lg:items-center">
           <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-400/20 px-3 py-0.5 text-[11px] font-extrabold text-teal-200 ring-1 ring-teal-300/30">
-                <Bot className="h-3.5 w-3.5 text-teal-300" />
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-400/20 px-2.5 sm:px-3 py-0.5 text-[10px] sm:text-[11px] font-extrabold text-teal-200 ring-1 ring-teal-300/30">
+                <Bot className="h-3.5 w-3.5 text-teal-300 shrink-0" />
                 <span>
                   {currentLang === 'pa'
                     ? 'AI ਆਟੋਮੈਟਿਕ ਸਕੀਮ ਐਡਮਿਨ (ਸਾਰੇ 36 ਰਾਜ + ਕੇਂਦਰੀ ਸਕੀਮਾਂ)'
@@ -192,7 +194,7 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                 Online + Offline Hybrid Engine
               </span>
             </div>
-            <p className="text-xs text-blue-100/90">
+            <p className="text-[11px] sm:text-xs text-blue-100/90 leading-relaxed">
               {currentLang === 'pa'
                 ? 'AI ਐਡਮਿਨ ਆਪਣੇ ਆਪ ਭਾਰਤ ਦੇ ਸਾਰੇ 28 ਰਾਜਾਂ, 8 ਕੇਂਦਰ ਸ਼ਾਸਤ ਪ੍ਰਦੇਸ਼ਾਂ ਅਤੇ ਕੇਂਦਰ ਸਰਕਾਰ ਦੀਆਂ ਨਵੀਆਂ ਅਤੇ ਪੁਰਾਣੀਆਂ ਸਕੀਮਾਂ ਆਨਲਾਈਨ ਅਤੇ ਆਫ਼ਲਾਈਨ ਦੋਵੇਂ ਮੋਡ ਵਿੱਚ ਜੋੜਦਾ ਰਹਿੰਦਾ ਹੈ।'
                 : currentLang === 'hi'
@@ -200,13 +202,13 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                 : 'AI Admin continuously discovers and auto-adds new (2025–2026) and classic (Purani) schemes across all 28 States & 8 Union Territories in both Online and Offline modes.'}
             </p>
             {latestAutoAddedTitle && (
-              <p className="text-[11px] font-semibold text-teal-300" data-testid="latest-ai-added-ticker">
+              <p className="text-[11px] font-semibold text-teal-300 truncate" data-testid="latest-ai-added-ticker">
                 ⚡ Latest AI Auto-Added: <span className="text-white underline decoration-teal-400/60">{latestAutoAddedTitle}</span>
               </p>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2">
             {onTriggerAiDiscovery && (
               <button
                 type="button"
@@ -222,9 +224,9 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                       : 'AI Admin autonomously discovered and added a new Government Scheme!'
                   );
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-sm transition hover:bg-emerald-300 disabled:opacity-60 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-sm transition hover:bg-emerald-300 disabled:opacity-60 cursor-pointer"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   {currentLang === 'pa'
                     ? 'AI ਨਾਲ ਨਵੀਂ ਸਕੀਮ ਹੁਣੇ ਜੋੜੋ'
@@ -248,9 +250,9 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                       : 'All 36 States/UTs New (2026) & Purani (Classic) schemes synced by AI!'
                   );
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-teal-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-sm transition hover:bg-teal-300 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-sm transition hover:bg-teal-300 cursor-pointer"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${isAiDiscovering ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${isAiDiscovering ? 'animate-spin' : ''}`} />
                 <span>
                   {currentLang === 'pa'
                     ? 'ਸਾਰੇ ਰਾਜਾਂ ਦੀਆਂ ਸਕੀਮਾਂ ਸਿੰਕ ਕਰੋ'
@@ -263,9 +265,9 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab('admin')}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20 cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20 cursor-pointer"
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+              <Sparkles className="h-3.5 w-3.5 text-amber-300 shrink-0" />
               <span>{currentLang === 'pa' ? 'AI ਐਡਮਿਨ ਪੈਨਲ' : currentLang === 'hi' ? 'AI एडमिन पैनल' : 'AI Admin Console'}</span>
             </button>
           </div>
@@ -273,12 +275,12 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
 
         {/* Era Filter Pills + Quick On-Demand AI Add Input */}
         <div className="mt-3.5 flex flex-col justify-between gap-3 border-t border-white/15 pt-3.5 lg:flex-row lg:items-center">
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Scheme Era Filter">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap" role="group" aria-label="Scheme Era Filter">
             <button
               type="button"
               data-testid="era-filter-all"
               onClick={() => onUpdateFilters({ schemeEra: 'all' })}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                 activeEra === 'all'
                   ? 'bg-white text-slate-950 shadow-xs'
                   : 'bg-white/10 text-blue-100 hover:bg-white/20'
@@ -294,13 +296,13 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
               type="button"
               data-testid="era-filter-new"
               onClick={() => onUpdateFilters({ schemeEra: 'new' })}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                 activeEra === 'new'
                   ? 'bg-emerald-400 text-slate-950 shadow-xs'
                   : 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-500/30'
               }`}
             >
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="h-3 w-3 shrink-0" />
               <span>
                 {currentLang === 'pa'
                   ? `ਨਵੀਆਂ ਸਕੀਮਾਂ 2025-26 (${newSchemesCount})`
@@ -313,13 +315,13 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
               type="button"
               data-testid="era-filter-purani"
               onClick={() => onUpdateFilters({ schemeEra: 'purani' })}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                 activeEra === 'purani'
                   ? 'bg-amber-400 text-slate-950 shadow-xs'
                   : 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30 hover:bg-amber-500/30'
               }`}
             >
-              <History className="h-3 w-3" />
+              <History className="h-3 w-3 shrink-0" />
               <span>
                 {currentLang === 'pa'
                   ? `ਪੁਰਾਣੀਆਂ / ਸਦਾਬਹਾਰ ਸਕੀਮਾਂ (${puraniSchemesCount})`
@@ -332,13 +334,13 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
               type="button"
               data-testid="era-filter-ai-added"
               onClick={() => onUpdateFilters({ schemeEra: 'ai-added' })}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                 activeEra === 'ai-added'
                   ? 'bg-teal-400 text-slate-950 shadow-xs'
                   : 'bg-teal-500/20 text-teal-200 ring-1 ring-teal-400/30 hover:bg-teal-500/30'
               }`}
             >
-              <Bot className="h-3 w-3" />
+              <Bot className="h-3 w-3 shrink-0" />
               <span>
                 {currentLang === 'pa'
                   ? `AI ਦੁਆਰਾ ਜੋੜੀਆਂ (${aiAutoAddedCount})`
@@ -350,7 +352,7 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
           </div>
 
           {onTriggerAiDiscovery && (
-            <form onSubmit={handleQuickAiAddSubmit} className="flex items-center gap-2">
+            <form onSubmit={handleQuickAiAddSubmit} className="flex w-full sm:w-auto items-center gap-2">
               <input
                 type="text"
                 data-testid="dashboard-ai-topic-input"
@@ -363,13 +365,13 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                     ? 'कोई भी नई या पुरानी योजना का नाम लिखें...'
                     : 'Type any New or Purani scheme for AI to add...'
                 }
-                className="w-full rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white placeholder:text-blue-200/70 outline-none focus:border-teal-300 sm:w-64"
+                className="min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white placeholder:text-blue-200/70 outline-none focus:border-teal-300 sm:w-64"
               />
               <button
                 type="submit"
                 disabled={isAiDiscovering}
                 data-testid="dashboard-ai-add-btn"
-                className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-extrabold text-slate-950 transition hover:bg-blue-50 disabled:opacity-60 cursor-pointer"
+                className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-slate-950 transition hover:bg-blue-50 disabled:opacity-60 cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>{isAiDiscovering ? 'Adding…' : 'AI Add'}</span>
@@ -542,7 +544,7 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
         </div>
 
         {/* Target Group Quick Pills (Women, Students, Farmers, Business Owners) */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap">
           {targetGroupButtons.map((group) => {
             const isSelected = advancedFilters.targetGroup === group.id;
             const label =
@@ -553,7 +555,7 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
                 type="button"
                 data-testid={`target-group-${group.id}`}
                 onClick={() => onUpdateFilters({ targetGroup: group.id })}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                className={`shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
                   isSelected
                     ? 'bg-blue-700 text-white shadow-2xs'
                     : 'border border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'

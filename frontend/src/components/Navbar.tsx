@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BarChart3, Home, Moon, Scan, Sun, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Home, Moon, Sun, UserRound, X } from 'lucide-react';
 import { Language } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { SupabaseAccount } from './SupabaseAccount';
@@ -31,7 +31,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const t = TRANSLATIONS[currentLang];
   const activeEmail = cloudAccount.localUserEmail || cloudAccount.userEmail;
-  const isAnalyticsActive = activeTab === 'analytics' || activeTab === 'insights';
   const navItems = [
     { id: 'dashboard', label: t.tabDashboard },
     { id: 'analytics', label: t.tabAnalytics || 'Analytics' },
@@ -62,21 +61,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl transition-colors dark:border-slate-800 dark:bg-slate-950/90">
-      <div className="relative mx-auto flex h-[64px] sm:h-[68px] max-w-7xl items-center justify-between gap-1.5 px-2.5 sm:gap-2 sm:px-6">
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl transition-colors dark:border-slate-800 dark:bg-slate-950/95">
+      <div className="relative mx-auto flex flex-wrap sm:flex-nowrap min-h-14 sm:h-[68px] max-w-7xl items-center justify-between gap-x-1 gap-y-1.5 px-2.5 py-1.5 sm:py-0 sm:gap-2 sm:px-6">
+        <div className="order-1 flex min-w-0 items-center gap-1.5 sm:gap-3">
           <button
             type="button"
+            data-testid="navbar-menu-toggle"
             onClick={() => setIsMenuOpen((open) => !open)}
             aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={isMenuOpen}
             aria-controls="primary-navigation"
-            className="inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-slate-200 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-slate-700"
+            className="inline-flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-slate-200 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-slate-700"
           >
             {isMenuOpen ? (
               <X className="h-5 w-5" aria-hidden="true" />
             ) : (
-              <span className="flex w-[18px] flex-col gap-[4px]" aria-hidden="true">
+              <span className="flex w-[16px] sm:w-[18px] flex-col gap-[3.5px] sm:gap-[4px]" aria-hidden="true">
                 <span className="h-[2px] w-full rounded-full bg-current" />
                 <span className="h-[2px] w-full rounded-full bg-current" />
                 <span className="h-[2px] w-full rounded-full bg-current" />
@@ -87,42 +87,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => selectTab('dashboard')}
-            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg text-xs font-extrabold tracking-tight text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:text-white sm:gap-2.5 sm:text-lg"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg text-sm font-extrabold tracking-tight text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:text-white sm:gap-2.5 sm:text-lg"
           >
-            <img src="/janshayak-ai-logo.svg" alt="" className="h-7 w-6 object-contain sm:h-10 sm:w-9" />
+            <img src="/janshayak-ai-logo.svg" alt="" className="h-6 w-5 object-contain sm:h-10 sm:w-9" />
             <span>
               Janshayak <span className="text-teal-700 dark:text-teal-400">AI</span>
             </span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="navbar-analytics-tab"
-            onClick={() => selectTab('analytics')}
-            aria-current={isAnalyticsActive ? 'page' : undefined}
-            className={`inline-flex min-h-8 sm:min-h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] sm:text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-blue-100 cursor-pointer whitespace-nowrap ${
-              isAnalyticsActive
-                ? 'border-blue-700 bg-blue-700 text-white shadow-2xs dark:border-blue-500 dark:bg-blue-600'
-                : 'border-slate-200 bg-slate-50/90 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700'
-            }`}
-          >
-            <BarChart3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>{t.tabAnalytics || 'Analytics'}</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="navbar-scanner-tab"
-            onClick={() => selectTab('scanner')}
-            aria-current={activeTab === 'scanner' ? 'page' : undefined}
-            className={`hidden md:inline-flex min-h-8 sm:min-h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] sm:text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-teal-100 cursor-pointer whitespace-nowrap ${
-              activeTab === 'scanner'
-                ? 'border-teal-700 bg-teal-700 text-white shadow-2xs dark:border-teal-500 dark:bg-teal-600'
-                : 'border-teal-200 bg-teal-50/80 text-teal-900 hover:border-teal-300 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/60 dark:text-teal-200 dark:hover:border-teal-600'
-            }`}
-          >
-            <Scan className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>{currentLang === 'pa' ? 'AI ਦਸਤਾਵੇਜ਼ ਸਕੈਨਰ' : currentLang === 'hi' ? 'AI दस्तावेज़ स्कैनर' : 'AI Doc Scanner'}</span>
           </button>
 
           {activeTab !== 'dashboard' && (
@@ -130,18 +100,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               data-testid="navbar-back-home-btn"
               onClick={() => selectTab('dashboard')}
-              className="inline-flex min-h-8 sm:min-h-9 shrink-0 items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/90 px-2 py-1 text-[11px] sm:text-xs font-bold text-blue-800 shadow-2xs transition hover:border-blue-300 hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:border-blue-800 dark:bg-blue-950/70 dark:text-blue-200 dark:hover:bg-blue-900/70 sm:px-3"
+              className="inline-flex h-8 sm:min-h-9 shrink-0 items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/90 px-2 py-1 text-[11px] sm:text-xs font-bold text-blue-800 shadow-2xs transition hover:border-blue-300 hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:border-blue-800 dark:bg-blue-950/70 dark:text-blue-200 dark:hover:bg-blue-900/70 sm:px-3"
               aria-label={t.backToHome}
             >
               <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <Home className="hidden h-3.5 w-3.5 shrink-0 sm:inline" aria-hidden="true" />
-              <span className="hidden xs:inline sm:inline">{t.homeShort}</span>
+              <span className="hidden sm:inline">{t.homeShort}</span>
             </button>
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
+        <div className="order-3 flex w-full items-center justify-between border-t border-slate-100 pt-1.5 dark:border-slate-800/80 sm:order-2 sm:ml-auto sm:w-auto sm:justify-end sm:border-t-0 sm:pt-0">
           <PWAInstallButton currentLang={currentLang} />
+        </div>
+
+        <div className="order-2 flex shrink-0 items-center justify-end gap-1 sm:order-3 sm:gap-2">
           <div
             role="group"
             aria-label="Choose language"
@@ -156,7 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   data-testid={`lang-${language.id}`}
                   onClick={() => onLanguageChange(language.id)}
                   aria-current={isSelected ? 'true' : undefined}
-                  className={`rounded-lg px-1.5 py-1 text-[11px] sm:px-2.5 sm:py-1.5 sm:text-xs font-bold transition cursor-pointer ${
+                  className={`rounded-lg px-1.5 py-1 text-[10px] sm:px-2.5 sm:py-1.5 sm:text-xs font-bold transition cursor-pointer ${
                     isSelected
                       ? 'bg-blue-700 text-white shadow-2xs'
                       : 'text-slate-700 hover:bg-white/70 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'

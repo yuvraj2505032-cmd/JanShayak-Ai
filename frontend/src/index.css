@@ -5,16 +5,36 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
   }
 
   html, body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   /* Ensure dark mode transitions feel crisp and smooth */
   body {
     transition: background-color 0.2s ease, color 0.2s ease;
   }
+}
+
+/* Hide scrollbars on mobile horizontal filter strips while keeping touch scroll */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe area padding for modern phones */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0.5rem);
 }
 
 /* Dark mode adaptive surface overrides for nested legacy panels */

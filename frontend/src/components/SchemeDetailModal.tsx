@@ -643,44 +643,44 @@ export const SchemeDetailModal: React.FC<SchemeDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl w-full max-w-4xl max-h-[94dvh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Top Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 relative shrink-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-white/10 text-teal-300 border border-white/10">
+        <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-4 sm:p-6 relative shrink-0">
+          <div className="flex items-start justify-between gap-3 sm:gap-4">
+            <div className="space-y-1.5 sm:space-y-2 min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 sm:py-1 rounded-md bg-white/10 text-teal-300 border border-white/10">
                   {scheme.level === 'Punjab State'
                     ? (language === 'pa' ? 'ਪੰਜਾਬ ਸਰਕਾਰ' : language === 'hi' ? 'पंजाब सरकार' : 'Punjab State')
                     : (language === 'pa' ? 'ਕੇਂਦਰ ਸਰਕਾਰ' : language === 'hi' ? 'केंद्र सरकार' : 'Central Govt')}
                 </span>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-400/20">
+                <span className="text-[10px] sm:text-xs font-semibold px-2.5 py-0.5 sm:py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-400/20">
                   {scheme.benefitType}
                 </span>
                 {isEligible ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                  <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 sm:py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     {language === 'pa' ? 'ਯੋਗ' : language === 'hi' ? 'पात्र' : 'Eligible'} ({matchPercentage}%)
                   </span>
                 ) : isPotentialMatch ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                  <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 sm:py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-400/30">
                     {language === 'pa' ? 'ਸੰਭਾਵੀ ਮੇਲ' : language === 'hi' ? 'संभावित मिलान' : 'Potential Match'} ({matchPercentage}%)
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-300 border border-rose-400/30">
+                  <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 sm:py-1 rounded-md bg-rose-500/20 text-rose-300 border border-rose-400/30">
                     <XCircle className="w-3.5 h-3.5" />
                     {language === 'pa' ? 'ਯੋਗ ਨਹੀਂ' : language === 'hi' ? 'अपात्र' : 'Not Eligible'}
                   </span>
                 )}
               </div>
 
-              <h2 className="text-xl sm:text-2xl font-extrabold leading-snug text-white">
+              <h2 className="text-lg sm:text-2xl font-extrabold leading-snug text-white">
                 {title}
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 flex items-center gap-1.5">
                 <Building className="w-4 h-4 text-teal-400 shrink-0" />
-                {dept}
+                <span className="truncate">{dept}</span>
               </p>
             </div>
 

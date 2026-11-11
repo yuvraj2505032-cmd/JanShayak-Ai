@@ -94,7 +94,11 @@ import {
   GraduationCap,
   Sparkles,
   MapPin,
-  Navigation
+  Navigation,
+  Home,
+  Scan,
+  BarChart3,
+  CheckCircle2
 } from 'lucide-react';
 
 const DEFAULT_PROFILE: CitizenProfile = {
@@ -1331,7 +1335,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-3 py-5 sm:px-6 sm:py-10">
 
         {/* TAB: DASHBOARD & SCHEME DIRECTORY */}
         {activeTab === 'dashboard' && (
@@ -1383,40 +1387,40 @@ export default function App() {
                 <section
                   aria-label="Occupation selector"
                   data-testid="live-eligibility-criteria-panel"
-                  className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 via-white to-teal-50/80 p-4 sm:p-5 shadow-xs space-y-4"
+                  className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 via-white to-teal-50/80 p-3.5 sm:p-5 shadow-xs space-y-3.5 sm:space-y-4"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-700 text-white shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-3">
+                    <div className="flex items-start sm:items-center gap-2.5">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white shadow-xs">
                         <GraduationCap className="h-5 w-5" aria-hidden="true" />
                       </span>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-bold uppercase tracking-wider text-blue-800">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-blue-800">
                             {currentLang === 'pa' ? 'ਕਿੱਤਾ ਅਤੇ ਯੋਗਤਾ (Occupation & Eligibility):' : 'Occupation & Dynamic Eligibility:'}
                           </span>
                           <span
                             data-testid="active-occupation-badge"
-                            className="inline-flex items-center gap-1 rounded-full bg-blue-700 px-2.5 py-0.5 text-xs font-bold text-white"
+                            className="inline-flex items-center gap-1 rounded-full bg-blue-700 px-2.5 py-0.5 text-[11px] sm:text-xs font-bold text-white"
                           >
                             {occupationsList.find(o => o.id === profile.occupation)?.label || profile.occupation}
                           </span>
                           <span
                             data-testid="active-location-badge"
-                            className="inline-flex items-center gap-1 rounded-full bg-teal-700 px-2.5 py-0.5 text-xs font-bold text-white"
+                            className="inline-flex items-center gap-1 rounded-full bg-teal-700 px-2.5 py-0.5 text-[11px] sm:text-xs font-bold text-white"
                           >
-                            <MapPin className="h-3 w-3" />
+                            <MapPin className="h-3 w-3 shrink-0" />
                             {profile.customLocation ? `${profile.customLocation} · ` : ''}
                             {profile.district}, {profile.state || 'Punjab'}
                           </span>
                           <span
                             data-testid="live-eligibility-match-summary"
-                            className="text-xs font-extrabold text-emerald-700"
+                            className="text-[11px] sm:text-xs font-extrabold text-emerald-700"
                           >
                             ({eligibleCount} Eligible · {potentialCount} Potential)
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 mt-0.5">
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                           {currentLang === 'pa'
                             ? activePreset.summaryPa
                             : currentLang === 'hi'
@@ -1426,14 +1430,14 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
                       <button
                         type="button"
                         data-testid="open-doc-scanner-quick-btn"
                         onClick={() => handleOpenScanner()}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-950 transition hover:bg-indigo-100 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 sm:py-1.5 text-xs font-bold text-indigo-950 transition hover:bg-indigo-100 cursor-pointer"
                       >
-                        <Sparkles className="h-3.5 w-3.5 text-indigo-700" />
+                        <Sparkles className="h-3.5 w-3.5 text-indigo-700 shrink-0" />
                         <span>
                           {currentLang === 'pa'
                             ? 'AI ਦਸਤਾਵੇਜ਼ ਸਕੈਨਰ ਅਤੇ ਘੱਟ ਕਾਗਜ਼ਾਤ'
@@ -1446,9 +1450,9 @@ export default function App() {
                         type="button"
                         data-testid="open-cyber-scanner-quick-btn"
                         onClick={() => setIsFraudModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-900 transition hover:bg-red-100 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 sm:py-1.5 text-xs font-bold text-red-900 transition hover:bg-red-100 cursor-pointer"
                       >
-                        <ShieldAlert className="h-3.5 w-3.5 text-red-700" />
+                        <ShieldAlert className="h-3.5 w-3.5 text-red-700 shrink-0" />
                         <span>
                           {currentLang === 'pa' ? 'ਵੈੱਬਸਾਈਟ ਅਸਲੀ/ਨਕਲੀ ਸਕੈਨਰ' : 'Scan Website (Cyber Shield)'}
                         </span>
@@ -1456,16 +1460,16 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setActiveTab('admin')}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-900 transition hover:bg-teal-100 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 sm:py-1.5 text-xs font-bold text-teal-900 transition hover:bg-teal-100 cursor-pointer"
                       >
-                        <Bot className="h-3.5 w-3.5 text-teal-700" />
+                        <Bot className="h-3.5 w-3.5 text-teal-700 shrink-0" />
                         <span>AI Knowledge Base ({allSchemes.length} Schemes)</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Occupation Selection Buttons */}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap">
                     {occupationsList.map((occ) => {
                       const isSelected = profile.occupation === occ.id;
                       return (
@@ -1475,7 +1479,7 @@ export default function App() {
                           data-testid={`occupation-btn-${occ.id.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                           onClick={() => handleQuickOccupationSelect(occ.id)}
                           aria-pressed={isSelected}
-                          className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition cursor-pointer ${
+                          className={`shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-semibold transition cursor-pointer ${
                             isSelected
                               ? 'bg-blue-700 text-white shadow-sm ring-2 ring-blue-300'
                               : 'border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'
@@ -1784,13 +1788,13 @@ export default function App() {
                 </div>
 
                 {/* Portal Category Filter Pills */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap">
                   {portalCategories.map((cat) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setPortalCategoryFilter(cat)}
-                      className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                      className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
                         portalCategoryFilter === cat
                           ? 'bg-teal-700 text-white shadow-xs'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -2220,7 +2224,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setIsVoiceAssistantOpen(true)}
-          className="fixed bottom-5 right-5 z-40 inline-flex min-h-16 items-center gap-3 rounded-full bg-blue-700 px-6 text-base font-semibold text-white shadow-2xl shadow-blue-900/30 transition hover:-translate-y-0.5 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 sm:bottom-7 sm:right-7"
+          className="hidden sm:inline-flex fixed bottom-7 right-7 z-40 min-h-16 items-center gap-3 rounded-full bg-blue-700 px-6 text-base font-semibold text-white shadow-2xl shadow-blue-900/30 transition hover:-translate-y-0.5 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300"
           aria-label="Open multilingual Voice AI"
         >
           <Mic className="h-6 w-6" aria-hidden="true" />
@@ -2228,8 +2232,105 @@ export default function App() {
         </button>
       )}
 
+      {/* Mobile Fixed Bottom Thumb-Navigation Bar (<640px) */}
+      <nav
+        aria-label="Mobile Bottom Navigation"
+        data-testid="mobile-bottom-nav"
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/90 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95 pb-safe shadow-[0_-8px_24px_-12px_rgba(15,23,42,0.18)]"
+      >
+        <div className="grid grid-cols-5 items-center h-14 px-1">
+          <button
+            type="button"
+            data-testid="mobile-nav-home"
+            onClick={() => {
+              setActiveTab('dashboard');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center min-h-[44px] rounded-xl transition cursor-pointer ${
+              activeTab === 'dashboard'
+                ? 'text-blue-700 dark:text-blue-400 font-extrabold'
+                : 'text-slate-500 dark:text-slate-400 font-medium'
+            }`}
+          >
+            <Home className="h-4 w-4" aria-hidden="true" />
+            <span className="mt-0.5 text-[10px] tracking-tight truncate">
+              {currentLang === 'pa' ? 'ਮੁੱਖ ਪੰਨਾ' : currentLang === 'hi' ? 'होम' : 'Home'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="mobile-nav-wizard"
+            onClick={() => {
+              setActiveTab('wizard');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center min-h-[44px] rounded-xl transition cursor-pointer ${
+              activeTab === 'wizard' || activeTab === 'profile'
+                ? 'text-blue-700 dark:text-blue-400 font-extrabold'
+                : 'text-slate-500 dark:text-slate-400 font-medium'
+            }`}
+          >
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            <span className="mt-0.5 text-[10px] tracking-tight truncate">
+              {currentLang === 'pa' ? 'ਯੋਗਤਾ' : currentLang === 'hi' ? 'पात्रता' : 'Eligibility'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="mobile-nav-scanner"
+            onClick={() => {
+              setActiveTab('scanner');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center min-h-[44px] rounded-xl transition cursor-pointer ${
+              activeTab === 'scanner'
+                ? 'text-teal-700 dark:text-teal-400 font-extrabold'
+                : 'text-slate-500 dark:text-slate-400 font-medium'
+            }`}
+          >
+            <Scan className="h-4 w-4" aria-hidden="true" />
+            <span className="mt-0.5 text-[10px] tracking-tight truncate">
+              {currentLang === 'pa' ? 'ਸਕੈਨਰ' : currentLang === 'hi' ? 'स्कैनर' : 'Doc Scan'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="mobile-nav-analytics"
+            onClick={() => {
+              setActiveTab('analytics');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center min-h-[44px] rounded-xl transition cursor-pointer ${
+              activeTab === 'analytics' || activeTab === 'insights'
+                ? 'text-blue-700 dark:text-blue-400 font-extrabold'
+                : 'text-slate-500 dark:text-slate-400 font-medium'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" aria-hidden="true" />
+            <span className="mt-0.5 text-[10px] tracking-tight truncate">
+              {currentLang === 'pa' ? 'ਅੰਕੜੇ' : currentLang === 'hi' ? 'आंकड़े' : 'Analytics'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="mobile-nav-voice-ai"
+            onClick={() => setIsVoiceAssistantOpen(true)}
+            className="flex flex-col items-center justify-center min-h-[44px] rounded-xl text-blue-700 dark:text-blue-400 font-extrabold transition cursor-pointer"
+          >
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-700 text-white shadow-xs">
+              <Mic className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <span className="mt-0.5 text-[10px] tracking-tight truncate">Voice AI</span>
+          </button>
+        </div>
+      </nav>
+
       {/* Official Government Footer */}
-      <footer className="bg-slate-900 text-slate-300 text-xs py-8 border-t border-slate-800 mt-12">
+      <footer className="bg-slate-900 text-slate-300 text-xs py-8 pb-24 sm:pb-8 border-t border-slate-800 mt-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <FraudProtectionBanner currentLang={currentLang} />
         </div>

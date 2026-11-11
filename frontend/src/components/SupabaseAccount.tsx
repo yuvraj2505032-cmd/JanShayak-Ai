@@ -736,7 +736,7 @@ export const SupabaseAccount: React.FC<SupabaseAccountProps> = ({
               resetFeedback();
               setIsOpen(true);
             }}
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/90 px-2.5 py-1.5 text-xs font-semibold text-emerald-950 shadow-xs transition hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 sm:px-3"
+            className="inline-flex h-8 sm:min-h-10 items-center gap-1 sm:gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/90 px-2 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold text-emerald-950 shadow-xs transition hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100"
             aria-label={`Account ${activeEmail}`}
             title={googleLinkedEmail ? `${activeEmail} (${t.linkedWithGoogle}: ${googleLinkedEmail})` : activeEmail}
           >
@@ -746,17 +746,17 @@ export const SupabaseAccount: React.FC<SupabaseAccountProps> = ({
             ) : (
               <UserRound className="hidden h-3.5 w-3.5 shrink-0 text-emerald-700 sm:inline" aria-hidden="true" />
             )}
-            <span className="max-w-20 truncate sm:max-w-32">{displayUserLabel}</span>
+            <span className="max-w-16 truncate sm:max-w-32">{displayUserLabel}</span>
           </button>
           <button
             type="button"
             disabled={isBusy}
             onClick={() => void handleSignOut()}
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-700 shadow-xs transition hover:border-rose-300 hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3"
+            className="inline-flex h-8 sm:min-h-10 items-center gap-1 sm:gap-1.5 rounded-xl border border-rose-200 bg-white px-2 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold text-rose-700 shadow-xs transition hover:border-rose-300 hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={t.signOut}
           >
             <LogOut className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>{t.signOut}</span>
+            <span className="hidden sm:inline">{t.signOut}</span>
           </button>
         </div>
       ) : (
@@ -766,11 +766,12 @@ export const SupabaseAccount: React.FC<SupabaseAccountProps> = ({
             resetFeedback();
             setIsOpen(true);
           }}
-          className="inline-flex h-8 sm:min-h-10 shrink-0 whitespace-nowrap items-center gap-1 rounded-xl bg-blue-700 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm cursor-pointer"
+          className="inline-flex h-8 w-8 sm:w-auto sm:min-h-10 shrink-0 whitespace-nowrap items-center justify-center gap-1 rounded-xl bg-blue-700 sm:px-3.5 sm:py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:gap-1.5 sm:text-sm cursor-pointer"
           aria-label={t.signIn}
+          title={t.signIn}
         >
           <LogIn className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" aria-hidden="true" />
-          <span>{t.signIn}</span>
+          <span className="hidden sm:inline">{t.signIn}</span>
         </button>
       )}
 

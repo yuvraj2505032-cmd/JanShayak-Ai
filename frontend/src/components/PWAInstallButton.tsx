@@ -28,16 +28,43 @@ export function useOnlineStatus() {
   return isOnline;
 }
 
+const PWA_INSTALLED_STORAGE_KEY = 'janshayak_pwa_installed_v1';
+
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      if (window.localStorage.getItem(PWA_INSTALLED_STORAGE_KEY) === 'true') {
+        return true;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true
+    );
+  });
   const [isIOS, setIsIOS] = useState(false);
+
+  const markAsInstalled = () => {
+    setIsInstalled(true);
+    setDeferredPrompt(null);
+    try {
+      window.localStorage.setItem(PWA_INSTALLED_STORAGE_KEY, 'true');
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   useEffect(() => {
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsInstalled(isStandalone);
+    if (isStandalone) {
+      markAsInstalled();
+    }
 
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
@@ -49,8 +76,7 @@ export function usePWAInstall() {
     };
 
     const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
+      markAsInstalled();
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -67,8 +93,7 @@ export function usePWAInstall() {
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
+      markAsInstalled();
       return true;
     }
     return false;
@@ -79,6 +104,7 @@ export function usePWAInstall() {
     isInstalled,
     isIOS,
     install,
+    markAsInstalled,
   };
 }
 
@@ -87,7 +113,7 @@ interface PWAInstallButtonProps {
 }
 
 export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang = 'en' }) => {
-  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
+  const { isInstallable, isInstalled, isIOS, install, markAsInstalled } = usePWAInstall();
   const isOnline = useOnlineStatus();
   const [showGuideModal, setShowGuideModal] = useState(false);
 
@@ -98,10 +124,55 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang 
       ? 'ऑफ़लाइन ऐप'
       : 'Offline App';
 
+  const labelInstallShort =
+    currentLang === 'pa'
+      ? 'ਐਪ ਡਾਊਨਲੋਡ'
+      : currentLang === 'hi'
+      ? 'ऐप डाउनलोड'
+      : 'Download';
+
+  const handleConfirmDownload = async () => {
+    if (isInstallable) {
+      const accepted = await install();
+      if (accepted) {
+        setShowGuideModal(false);
+        return;
+      }
+    }
+    // Trigger offline web app shortcut file download for desktop/mobile browsers when native prompt is unavailable
+    try {
+      const shortcutHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="0;url=${window.location.origin}" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Janshayak AI — Offline Welfare Navigator</title>
+</head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f172a;color:#fff;">
+  <p>Opening Janshayak AI (<a href="${window.location.origin}" style="color:#38bdf8;">Click here if not redirected</a>)...</p>
+</body>
+</html>`;
+      const blob = new Blob([shortcutHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Janshayak-AI-App.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore blob download errors in restricted environments
+    }
+    markAsInstalled();
+    setShowGuideModal(false);
+  };
+
   return (
     <>
-      <div className="inline-flex items-center gap-1.5">
-        {/* Live Connectivity Status Pill */}
+      <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-1.5">
+        {/* Live Connectivity Status Pill — always visible on mobile and desktop */}
         <span
           data-testid="network-status-badge"
           title={
@@ -109,7 +180,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang 
               ? 'Online & Offline Ready — Live AI + Local Cache Active'
               : 'Offline Mode Active — Working without internet'
           }
-          className={`inline-flex items-center gap-1 rounded-xl border px-2 py-1 text-[11px] font-bold transition ${
+          className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] sm:text-xs font-bold transition whitespace-nowrap ${
             isOnline
               ? 'border-emerald-200 bg-emerald-50/90 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
               : 'border-amber-300 bg-amber-100 text-amber-950 animate-pulse dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200'
@@ -117,22 +188,22 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang 
         >
           {isOnline ? (
             <>
-              <Wifi className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-              <span className="hidden md:inline">
+              <Wifi className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <span>
                 {currentLang === 'pa' ? 'ਆਨਲਾਈਨ + ਆਫ਼ਲਾਈਨ ਤਿਆਰ' : currentLang === 'hi' ? 'ऑनलाइन + ऑफ़लाइन तैयार' : 'Online + Offline Ready'}
               </span>
             </>
           ) : (
             <>
-              <WifiOff className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+              <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
               <span>
-                {currentLang === 'pa' ? 'ਆਫ਼ਲਾਈਨ ਮੋਡ' : currentLang === 'hi' ? 'ऑफ़लाइन मोड' : 'Offline Mode'}
+                {currentLang === 'pa' ? 'ਆਫ਼ਲਾਈਨ ਮੋਡ (Offline)' : currentLang === 'hi' ? 'ऑफ़लाइन मोड (Offline)' : 'Offline Mode Active'}
               </span>
             </>
           )}
         </span>
 
-        {/* Install / Offline App Button */}
+        {/* Install / Offline App Button — stays visible until user downloads/installs the app */}
         {!isInstalled && (
           <button
             type="button"
@@ -144,10 +215,12 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang 
                 setShowGuideModal(true);
               }
             }}
-            className="inline-flex h-8 sm:h-9 items-center gap-1.5 rounded-xl bg-blue-700 px-2.5 py-1 text-[11px] sm:text-xs font-bold text-white shadow-2xs transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 cursor-pointer"
+            className="inline-flex h-8 sm:h-9 w-auto items-center justify-center gap-1.5 rounded-xl bg-blue-700 px-2.5 py-1 text-[11px] sm:text-xs font-bold text-white shadow-2xs transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 cursor-pointer shrink-0 whitespace-nowrap"
             aria-label="Install Offline App"
+            title={labelInstall}
           >
             <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="sm:hidden">{labelInstallShort}</span>
             <span className="hidden sm:inline">{labelInstall}</span>
           </button>
         )}
@@ -160,10 +233,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang 
           aria-modal="true"
           aria-labelledby="offline-pwa-modal-title"
         >
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                   <Smartphone className="h-5 w-5" />
                 </span>
                 <div>
@@ -182,7 +255,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang 
               <button
                 type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 cursor-pointer"
                 aria-label="Close offline app guide"
               >
                 <X className="h-4 w-4" />
@@ -215,19 +288,37 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ currentLang 
               ) : (
                 <div className="space-y-1.5 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/70">
                   <p className="font-bold text-slate-900 dark:text-white">How to Install as Desktop / Mobile App:</p>
-                  <p>1. Click the <strong>Install App</strong> icon in your browser address bar (Chrome / Edge) or browser menu.</p>
+                  <p>1. Click <strong>Download App Now</strong> below or use your browser’s <strong>Install App</strong> icon.</p>
                   <p>2. Launch <strong>Janshayak AI</strong> anytime from your home screen or desktop—even without internet!</p>
                 </div>
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowGuideModal(false)}
-              className="mt-5 w-full rounded-xl bg-blue-700 py-2.5 text-xs font-bold text-white hover:bg-blue-800 transition cursor-pointer"
-            >
-              {currentLang === 'pa' ? 'ਠੀਕ ਹੈ (Got it)' : 'Got It'}
-            </button>
+            <div className="mt-5 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                data-testid="pwa-confirm-download-btn"
+                onClick={() => void handleConfirmDownload()}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 py-2.5 px-4 text-xs font-bold text-white hover:bg-blue-800 transition cursor-pointer"
+              >
+                <Download className="h-4 w-4 shrink-0" />
+                <span>
+                  {currentLang === 'pa'
+                    ? 'ਐਪ ਡਾਊਨਲੋਡ ਕਰੋ (Download Now)'
+                    : currentLang === 'hi'
+                    ? 'ऐप डाउनलोड करें (Download Now)'
+                    : 'Download Offline App Now'}
+                </span>
+              </button>
+              <button
+                type="button"
+                data-testid="pwa-later-btn"
+                onClick={() => setShowGuideModal(false)}
+                className="rounded-xl border border-slate-200 bg-slate-100 py-2.5 px-4 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition cursor-pointer"
+              >
+                {currentLang === 'pa' ? 'ਬਾਅਦ ਵਿੱਚ (Later)' : currentLang === 'hi' ? 'बाद में (Later)' : 'Later'}
+              </button>
+            </div>
           </div>
         </div>
       )}

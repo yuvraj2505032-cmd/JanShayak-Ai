@@ -208,21 +208,21 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/65 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-5">
       <div
-        className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[93vh] animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[93vh] animate-in fade-in zoom-in-95 duration-150"
         role="dialog"
         aria-modal="true"
         aria-labelledby="scanner-modal-title"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-950 via-indigo-900 to-teal-900 text-white p-4 sm:p-6 flex items-start justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 bg-teal-500/20 text-teal-300 text-xs font-bold px-3 py-1 rounded-full border border-teal-400/30">
-              <Scan className="w-3.5 h-3.5" />
-              <span>AI Document Scanner &amp; Missing Document Detector (Online + Offline)</span>
+        <div className="bg-gradient-to-r from-blue-950 via-indigo-900 to-teal-900 text-white p-3.5 sm:p-6 flex items-start justify-between gap-3 sm:gap-4">
+          <div className="space-y-1 sm:space-y-1.5 min-w-0">
+            <div className="inline-flex items-center gap-1.5 bg-teal-500/20 text-teal-300 text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 rounded-full border border-teal-400/30">
+              <Scan className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">AI Document Scanner &amp; Missing Detector</span>
             </div>
-            <h2 id="scanner-modal-title" className="text-xl sm:text-2xl font-black tracking-tight text-white">
+            <h2 id="scanner-modal-title" className="text-lg sm:text-2xl font-black tracking-tight text-white leading-snug">
               Smart Citizen Document Scanner &amp; Missing Detector
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 max-w-3xl">
@@ -242,16 +242,16 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+        <div className="p-3.5 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5">
           {/* Top Summary Metrics Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-3.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-2.5 sm:p-3.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Selected Scheme Ready
               </span>
               <div
                 data-testid="scanner-scheme-readiness-pct"
-                className={`text-xl sm:text-2xl font-black mt-0.5 ${
+                className={`text-base sm:text-2xl font-black mt-0.5 ${
                   targetReport.readinessPct === 100
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : targetReport.readinessPct >= 50
@@ -261,48 +261,48 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
               >
                 {targetReport.readinessPct}% ({targetReport.verifiedCount}/{targetReport.totalDocs})
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                 {targetReport.missingCount === 0
                   ? '100% Ready for Portal Submission'
                   : `${targetReport.mandatoryMissingCount} Mandatory Missing`}
               </p>
             </div>
 
-            <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-2.5 sm:p-3.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                 Schemes 100% Ready Now
               </span>
               <div
                 data-testid="scanner-ready-schemes-count"
-                className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-0.5"
+                className="text-base sm:text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-0.5"
               >
                 {profileWide.readyToApplySchemeIds.length} Schemes
               </div>
-              <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">
+              <p className="text-[10px] sm:text-[11px] text-emerald-700/80 dark:text-emerald-300/80 mt-0.5 leading-tight">
                 Zero missing documents for your profile
               </p>
             </div>
 
-            <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 p-3.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+            <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 p-2.5 sm:p-3.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                 Almost Ready (1 Doc Left)
               </span>
-              <div className="text-xl sm:text-2xl font-black text-amber-700 dark:text-amber-400 mt-0.5">
+              <div className="text-base sm:text-2xl font-black text-amber-700 dark:text-amber-400 mt-0.5">
                 {profileWide.almostReadySchemeTitles.length} Schemes
               </div>
-              <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+              <p className="text-[10px] sm:text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-0.5 leading-tight">
                 Need just 1 more certificate to apply
               </p>
             </div>
 
-            <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/30 p-3.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+            <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/30 p-2.5 sm:p-3.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
                 Profile Document Wallet
               </span>
-              <div className="text-xl sm:text-2xl font-black text-blue-700 dark:text-blue-400 mt-0.5">
+              <div className="text-base sm:text-2xl font-black text-blue-700 dark:text-blue-400 mt-0.5">
                 {profileWide.ownedUniqueCount}/{profileWide.totalUniqueDocs} Arranged
               </div>
-              <p className="text-[11px] text-blue-700/80 dark:text-blue-300/80 mt-0.5">
+              <p className="text-[10px] sm:text-[11px] text-blue-700/80 dark:text-blue-300/80 mt-0.5 leading-tight">
                 {profileWide.overallReadinessPct}% Overall Profile Readiness
               </p>
             </div>
@@ -322,12 +322,12 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
               </div>
 
               {/* Mode Switcher Tabs */}
-              <div className="inline-flex rounded-xl bg-slate-800 p-1 border border-slate-700">
+              <div className="flex w-full sm:w-auto overflow-x-auto no-scrollbar rounded-xl bg-slate-800 p-1 border border-slate-700 gap-1">
                 <button
                   type="button"
                   data-testid="scanner-mode-quick"
                   onClick={() => setScannerTab('quick-scan')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                     scannerTab === 'quick-scan'
                       ? 'bg-teal-500 text-slate-950'
                       : 'text-slate-300 hover:text-white'
@@ -339,7 +339,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                   type="button"
                   data-testid="scanner-mode-upload"
                   onClick={() => setScannerTab('upload-ocr')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                     scannerTab === 'upload-ocr'
                       ? 'bg-teal-500 text-slate-950'
                       : 'text-slate-300 hover:text-white'
@@ -351,7 +351,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                   type="button"
                   data-testid="scanner-mode-impact"
                   onClick={() => setScannerTab('impact-detector')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                     scannerTab === 'impact-detector'
                       ? 'bg-teal-500 text-slate-950'
                       : 'text-slate-300 hover:text-white'
@@ -807,15 +807,15 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+        <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 pb-safe">
+          <div className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-teal-700 dark:text-teal-400 shrink-0" />
             <span>
               DPDP Privacy Protected: Document scans are verified without storing raw Aadhaar images on third-party servers.
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {onOpenSchemeModal && (
               <button
                 type="button"
@@ -826,7 +826,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                     onOpenSchemeModal(found);
                   }
                 }}
-                className="bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                className="flex-1 sm:flex-initial bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition-colors cursor-pointer"
               >
                 Open Scheme Details
               </button>
@@ -834,7 +834,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="flex-1 sm:flex-initial bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               Done &amp; Return to Schemes
             </button>

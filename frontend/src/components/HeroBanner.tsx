@@ -117,37 +117,37 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
   };
 
   return (
-    <section className="bg-white px-4 pb-6 pt-5 transition-colors dark:bg-slate-950 sm:px-6 sm:pb-10 sm:pt-8">
+    <section className="bg-white px-3 pb-4 pt-3 transition-colors dark:bg-slate-950 sm:px-6 sm:pb-10 sm:pt-8">
       <div className="mx-auto max-w-7xl">
-        <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(115deg,rgba(255,153,51,0.12)_0%,rgba(255,255,255,0.97)_47%,rgba(19,136,8,0.09)_100%)] px-5 py-10 text-center shadow-[0_24px_70px_-48px_rgba(15,23,42,0.34)] dark:border-slate-800 dark:bg-[linear-gradient(115deg,rgba(30,58,138,0.35)_0%,rgba(15,23,42,0.95)_50%,rgba(13,148,136,0.25)_100%)] sm:px-10 sm:py-14 lg:py-16">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(115deg,rgba(255,153,51,0.12)_0%,rgba(255,255,255,0.97)_47%,rgba(19,136,8,0.09)_100%)] px-4 py-6 text-center shadow-[0_24px_70px_-48px_rgba(15,23,42,0.34)] dark:border-slate-800 dark:bg-[linear-gradient(115deg,rgba(30,58,138,0.35)_0%,rgba(15,23,42,0.95)_50%,rgba(13,148,136,0.25)_100%)] sm:px-10 sm:py-14 lg:py-16">
           <div className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-orange-200/20 blur-3xl dark:bg-blue-500/10" />
           <div className="pointer-events-none absolute -bottom-28 -right-16 h-72 w-72 rounded-full bg-emerald-200/25 blur-3xl dark:bg-teal-500/10" />
           <div className="relative mx-auto max-w-5xl">
-            <div className="mb-4 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300">
-              <ShieldCheck className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+            <div className="mb-3 sm:mb-4 inline-flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.14em] sm:tracking-[0.18em] text-slate-600 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300">
+              <ShieldCheck className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
               <span>{t.heroEyebrow}</span>
             </div>
-            <h1 className="text-3xl font-bold leading-[1.15] tracking-[-0.03em] text-slate-950 dark:text-white sm:text-5xl">
+            <h1 className="text-2xl font-bold leading-[1.2] tracking-[-0.02em] text-slate-950 dark:text-white sm:text-5xl sm:leading-[1.15]">
               {t.heroTitle}
             </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">
+            <p className="mx-auto mt-2.5 sm:mt-4 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300 sm:text-lg sm:leading-7">
               {t.heroSubtitle}
             </p>
-            <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mt-5 sm:mt-7 flex flex-col items-stretch sm:items-center justify-center gap-2.5 sm:flex-row sm:gap-3">
               <button
                 type="button"
                 onClick={onStartWizard}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-blue-700 px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 cursor-pointer"
+                className="inline-flex min-h-11 sm:min-h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-blue-700 px-5 sm:px-6 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 cursor-pointer"
               >
                 {t.heroCheckEligibility}
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={onOpenFamilyFinder}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-6 text-sm font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-4 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="inline-flex min-h-11 sm:min-h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-5 sm:px-6 text-sm font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-4 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
-                <Users className="h-4 w-4 text-slate-600 dark:text-slate-300" aria-hidden="true" />
+                <Users className="h-4 w-4 text-slate-600 dark:text-slate-300 shrink-0" aria-hidden="true" />
                 {t.heroFamilyFinder}
               </button>
             </div>
@@ -155,9 +155,9 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
         </div>
 
         {/* Natural Language & Voice Search Bar */}
-        <div className="mx-auto mt-7 max-w-4xl">
-          <div className="flex h-[60px] items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 shadow-[0_12px_36px_-26px_rgba(15,23,42,0.35)] transition focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:focus-within:border-blue-500 dark:focus-within:ring-blue-950 sm:gap-3 sm:px-5">
-            <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+        <div className="mx-auto mt-4 sm:mt-7 max-w-4xl">
+          <div className="flex h-[52px] sm:h-[60px] items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 shadow-[0_12px_36px_-26px_rgba(15,23,42,0.35)] transition focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:focus-within:border-blue-500 dark:focus-within:ring-blue-950 sm:gap-3 sm:px-5">
+            <Search className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-slate-400" aria-hidden="true" />
             <label className="sr-only" htmlFor="scheme-search">{t.heroSearchPlaceholder}</label>
             <input
               id="scheme-search"
@@ -169,14 +169,14 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
                 if (event.key === 'Enter' && searchQuery.trim()) onAskAI();
               }}
               placeholder={t.heroSearchPlaceholder}
-              className="h-full min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500 sm:text-[17px]"
+              className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500 sm:text-[17px]"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => onSearchChange('')}
                 aria-label={t.clearSearch}
-                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                className="rounded-full p-1.5 sm:p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -187,7 +187,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
               onClick={handleVoiceSearchToggle}
               aria-label={isVoiceListening ? 'Stop voice search' : 'Search schemes by voice'}
               title={isVoiceListening ? 'Stop voice search' : 'Voice search (English, Punjabi, Hindi)'}
-              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition cursor-pointer ${
+              className={`inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border transition cursor-pointer ${
                 isVoiceListening
                   ? 'border-rose-500 bg-rose-600 text-white animate-pulse'
                   : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-teal-600'
@@ -203,10 +203,10 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
               type="button"
               disabled={!searchQuery.trim()}
               onClick={onAskAI}
-              className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-blue-700 px-3 text-xs font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-45 sm:px-4 sm:text-sm cursor-pointer"
+              className="inline-flex h-9 sm:h-10 shrink-0 items-center gap-1 sm:gap-1.5 rounded-xl bg-blue-700 px-2.5 text-xs font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-45 sm:px-4 sm:text-sm cursor-pointer"
             >
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-              <span>{t.heroAskAi}</span>
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" aria-hidden="true" />
+              <span className="whitespace-nowrap">{t.heroAskAi}</span>
             </button>
           </div>
 
@@ -217,8 +217,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           )}
 
           {/* Smart Search Suggestions Bar */}
-          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
-            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+          <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap sm:justify-center">
+            <span className="shrink-0 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
               {currentLang === 'pa' ? 'ਸਮਾਰਟ ਖੋਜ:' : currentLang === 'hi' ? 'स्मार्ट खोज:' : 'Smart suggestions:'}
             </span>
             {smartSuggestions.slice(0, 4).map((suggestion) => (
@@ -226,7 +226,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
                 key={suggestion}
                 type="button"
                 onClick={() => onSearchChange(suggestion)}
-                className="rounded-lg border border-slate-200/80 bg-slate-50/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:text-blue-300 cursor-pointer"
+                className="shrink-0 whitespace-nowrap rounded-lg border border-slate-200/80 bg-slate-50/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:text-blue-300 cursor-pointer"
               >
                 {suggestion}
               </button>
@@ -234,7 +234,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           </div>
 
           {/* Primary Category Filter Bar */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2" aria-label="Filter schemes by category">
+          <div className="mt-3 sm:mt-4 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap sm:justify-center" aria-label="Filter schemes by category">
             {filterItems.map((filter) => {
               const selected = activeFilter === filter.value;
               return (
@@ -244,7 +244,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
                   data-testid={`hero-filter-${filter.value.toLowerCase().replace(/\s+/g, '-')}`}
                   onClick={() => onFilterChange(filter.value)}
                   aria-pressed={selected}
-                  className={`rounded-full px-3.5 py-1.5 text-xs sm:text-sm font-medium transition cursor-pointer ${
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs sm:text-sm font-medium transition cursor-pointer ${
                     selected
                       ? 'bg-slate-900 text-white shadow-sm dark:bg-blue-600 dark:text-white'
                       : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
