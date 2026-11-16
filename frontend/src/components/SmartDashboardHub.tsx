@@ -520,7 +520,34 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-testid="smart-hub-saved-filter-toggle"
+              aria-pressed={Boolean(advancedFilters.savedOnly)}
+              onClick={() => onUpdateFilters({ savedOnly: !advancedFilters.savedOnly })}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-extrabold transition cursor-pointer ${
+                advancedFilters.savedOnly
+                  ? 'border-amber-500 bg-amber-500 text-slate-950 shadow-2xs'
+                  : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-200'
+              }`}
+            >
+              <Bookmark className={`h-3.5 w-3.5 ${advancedFilters.savedOnly ? 'fill-slate-950 text-slate-950' : 'fill-amber-500 text-amber-600'}`} />
+              <span>
+                {advancedFilters.savedOnly
+                  ? currentLang === 'pa'
+                    ? `ਸਿਰਫ਼ ਸੇਵ ਕੀਤੀਆਂ ਸਕੀਮਾਂ (${savedSchemeIds.length}) · ਸਾਰੀਆਂ ਦੇਖੋ`
+                    : currentLang === 'hi'
+                      ? `केवल सहेजी गई योजनाएं (${savedSchemeIds.length}) · सभी देखें`
+                      : `Viewing Saved Only (${savedSchemeIds.length}) · Show All`
+                  : currentLang === 'pa'
+                    ? `ਸੇਵ ਕੀਤੀਆਂ ਸਕੀਮਾਂ (${savedSchemeIds.length})`
+                    : currentLang === 'hi'
+                      ? `सहेजी गई योजनाएं (${savedSchemeIds.length})`
+                      : `Saved Schemes (${savedSchemeIds.length})`}
+              </span>
+            </button>
+
             {activeFilterCount > 0 && (
               <button
                 type="button"

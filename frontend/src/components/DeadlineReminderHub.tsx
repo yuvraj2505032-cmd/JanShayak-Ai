@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Scheme, Language } from '../types/scheme';
 import { GOV_SCHEMES } from '../data/schemes';
+import { PhoneAlertCenter } from './PhoneAlertCenter';
+import {
+  loadPhoneAlertSubscription,
+  dispatchSchemeAlertToPhone,
+} from '../utils/phoneAlertService';
 import { 
   Calendar, 
   Clock, 
@@ -13,7 +18,8 @@ import {
   ArrowRight,
   ShieldAlert,
   Copy,
-  Check
+  Check,
+  Smartphone
 } from 'lucide-react';
 
 interface DeadlineReminderHubProps {
@@ -149,6 +155,18 @@ export const DeadlineReminderHub: React.FC<DeadlineReminderHubProps> = ({
       const next = !prev[schemeId];
       if (next) {
         setSmsSentIds((existing) => (existing.includes(schemeId) ? existing : [...existing, schemeId]));
+        const sub = loadPhoneAlertSubscription();
+        const phoneToUse = sub.phoneNumber || '9876543210';
+        const targetScheme = GOV_SCHEMES.find((s) => s.id === schemeId) || GOV_SCHEMES[0];
+        const dlItem = DEADLINE_ITEMS.find((d) => d.schemeId === schemeId);
+        const days = dlItem ? calculateDaysLeft(dlItem.targetDate) : 14;
+        dispatchSchemeAlertToPhone({
+          phoneNumber: phoneToUse,
+          scheme: targetScheme,
+          alertType: 'deadline',
+          language: currentLang,
+          daysLeft: days,
+        }).catch(() => {});
       }
       return { ...prev, [schemeId]: next };
     });
@@ -186,6 +204,9 @@ export const DeadlineReminderHub: React.FC<DeadlineReminderHubProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Direct Phone Number SMS & WhatsApp Scheme Alert Hub */}
+      <PhoneAlertCenter currentLang={currentLang} />
+
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-rose-950 text-white rounded-2xl p-6 shadow-md border border-amber-900/40">
         <div className="flex flex-wrap items-center justify-between gap-4">

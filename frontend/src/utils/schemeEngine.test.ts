@@ -5,6 +5,9 @@ import { CitizenProfile, Scheme } from '../types/scheme';
 import { GOV_SCHEMES } from '../data/schemes';
 import { INDIAN_22_LANGUAGES, getIndianLanguageConfig, detectQueryTopicIn22Languages } from './indianLanguages';
 import { generateOfflineChatReply } from './offlineCache';
+import { normalizeIndianPhoneNumber, buildSchemePhoneAlertText } from './phoneAlertService';
+import { filterSchemesAdvanced, DEFAULT_ADVANCED_FILTERS, countActiveAdvancedFilters } from './advancedSchemeFilter';
+import { analyzePhotoJawabInput, detectPhotoJawabCategory } from './photoJawabHelper';
 
 test('schemeEngine: PM-Kisan eligibility for small landholding farmer', () => {
   const farmerProfile: CitizenProfile = {
@@ -195,5 +198,103 @@ test('indianLanguages: all 22 Scheduled Indian Languages have native greetings, 
   assert.equal(detectQueryTopicIn22Languages('छात्रवृत्ति योजना').isStudent, true);
   assert.equal(detectQueryTopicIn22Languages('آشرواد اسکیم شگن').isWomen, true);
 });
+
+test('phoneAlertService: validates Indian phone numbers and formats trilingual SMS scheme alerts', () => {
+  const validPhone = normalizeIndianPhoneNumber('+91 98765-43210');
+  assert.equal(validPhone.isValid, true);
+  assert.equal(validPhone.digits10, '9876543210');
+  assert.equal(validPhone.e164, '+919876543210');
+
+  const invalidPhone = normalizeIndianPhoneNumber('12345');
+  assert.equal(invalidPhone.isValid, false);
+
+  const scheme = GOV_SCHEMES[0];
+  const smsPa = buildSchemePhoneAlertText({
+    scheme,
+    alertType: 'deadline',
+    language: 'pa',
+    daysLeft: 10,
+  });
+  assert.ok(smsPa.includes('1100'));
+  assert.ok(smsPa.includes(scheme.titlePa));
+  assert.ok(smsPa.includes('JAN-AI-'));
+
+  const trackerSms = buildSchemePhoneAlertText({
+    scheme,
+    alertType: 'tracker_status',
+    language: 'en',
+    trackerStageLabel: 'Documents Ready',
+  });
+  assert.ok(trackerSms.includes('Documents Ready'));
+  assert.ok(trackerSms.includes('JAN-AI-'));
+});
+
+test('advancedSchemeFilter: savedOnly toggles between all schemes and user-saved schemes', () => {
+  const farmerProfile: CitizenProfile = {
+    username: '',
+    age: 42,
+    gender: 'Male',
+    occupation: 'Farmer',
+    annualIncome: 120000,
+    category: 'General',
+    district: 'Ludhiana',
+    isPunjabDomicile: true,
+    landholdingAcres: 3.5,
+    hasDisability: false,
+    isWidowOrDestitute: false,
+    isEnrolledInSchoolOrCollege: false,
+  };
+
+  const evaluations = evaluateAllSchemes(farmerProfile, GOV_SCHEMES);
+  const savedSchemeIds = [GOV_SCHEMES[0].id, GOV_SCHEMES[1].id];
+
+  const allFiltered = filterSchemesAdvanced(
+    evaluations,
+    { ...DEFAULT_ADVANCED_FILTERS, savedOnly: false },
+    savedSchemeIds
+  );
+  assert.equal(allFiltered.length, GOV_SCHEMES.length);
+  assert.equal(countActiveAdvancedFilters({ ...DEFAULT_ADVANCED_FILTERS, savedOnly: false }), 0);
+
+  const savedOnlyFiltered = filterSchemesAdvanced(
+    evaluations,
+    { ...DEFAULT_ADVANCED_FILTERS, savedOnly: true },
+    savedSchemeIds
+  );
+  assert.equal(savedOnlyFiltered.length, 2);
+  assert.deepEqual(
+    savedOnlyFiltered.map((e) => e.scheme.id).sort(),
+    [...savedSchemeIds].sort()
+  );
+  assert.equal(countActiveAdvancedFilters({ ...DEFAULT_ADVANCED_FILTERS, savedOnly: true }), 1);
+});
+
+test('photoJawabHelper: Photo Bhejo Jawab Pao explains Ehde ch ki likheya aa and Agge ki karna aa for Ration Card, Bill, and Form', () => {
+  assert.equal(detectPhotoJawabCategory({ fileName: 'my_ration_card.jpg' }), 'ration_card');
+  assert.equal(detectPhotoJawabCategory({ fileName: 'pspcl_bijli_bill.png' }), 'electricity_bill');
+  assert.equal(detectPhotoJawabCategory({ rawText: 'Sewa Kendra Application Form Box 1' }), 'application_form');
+
+  const rationAnalysis = analyzePhotoJawabInput({
+    fileName: 'Punjab_Ration_Card.jpg',
+    language: 'pa',
+  });
+  assert.equal(rationAnalysis.category, 'ration_card');
+  assert.ok(rationAnalysis.ehdeChKiLikheyaPa.length > 20);
+  assert.ok(rationAnalysis.aggeKiKarnaPa.length >= 3);
+  assert.ok(rationAnalysis.formattedReply.includes('Ehde ch ki likheya aa'));
+  assert.ok(rationAnalysis.formattedReply.includes('Agge ki karna aa'));
+  assert.ok(rationAnalysis.unlockedSchemeIds.includes('smart-ration-card'));
+
+  const billAnalysis = analyzePhotoJawabInput({
+    fileName: 'PSPCL_Electricity_Bill.jpg',
+    language: 'en',
+  });
+  assert.equal(billAnalysis.category, 'electricity_bill');
+  assert.ok(billAnalysis.ehdeChKiLikheyaEn.includes('3004819204'));
+  assert.ok(billAnalysis.unlockedSchemeIds.includes('punjab-300-units-free-electricity'));
+});
+
+
+
 
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Home, Moon, Sun, UserRound, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Home, Moon, Sun, UserRound, X, Zap } from 'lucide-react';
 import { Language } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { SupabaseAccount } from './SupabaseAccount';
@@ -29,6 +29,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isLiteMode, setIsLiteMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('janshayak_lite_2g_mode');
+      if (saved === 'true') return true;
+      if (saved === 'false') return false;
+      const conn = (navigator as unknown as { connection?: { effectiveType?: string; saveData?: boolean } }).connection;
+      if (conn && (conn.saveData || conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g')) {
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('lite-2g-mode', isLiteMode);
+    try {
+      localStorage.setItem('janshayak_lite_2g_mode', String(isLiteMode));
+    } catch {
+      // ignore
+    }
+  }, [isLiteMode]);
+
   const t = TRANSLATIONS[currentLang];
   const activeEmail = cloudAccount.localUserEmail || cloudAccount.userEmail;
   const navItems = [
@@ -110,8 +134,34 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        <div className="order-3 flex w-full items-center justify-between border-t border-slate-100 pt-1.5 dark:border-slate-800/80 sm:order-2 sm:ml-auto sm:w-auto sm:justify-end sm:border-t-0 sm:pt-0">
+        <div className="order-3 flex w-full items-center justify-between gap-2 border-t border-slate-100 pt-1.5 dark:border-slate-800/80 sm:order-2 sm:ml-auto sm:w-auto sm:justify-end sm:border-t-0 sm:pt-0">
           <PWAInstallButton currentLang={currentLang} />
+          <button
+            type="button"
+            data-testid="lite-mode-toggle-btn"
+            onClick={() => setIsLiteMode((prev) => !prev)}
+            title="Toggle 2G/3G Low-Internet Lite Mode (Text-Only Fast Loading for Rural Areas)"
+            className={`inline-flex items-center gap-1 rounded-xl border px-2 py-1 text-[10px] sm:text-xs font-extrabold transition cursor-pointer shrink-0 ${
+              isLiteMode
+                ? 'border-amber-400 bg-amber-400 text-slate-950 shadow-2xs'
+                : 'border-slate-200 bg-slate-100/90 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+            }`}
+          >
+            <Zap className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              {isLiteMode
+                ? currentLang === 'pa'
+                  ? '2G ਲਾਈਟ ਚਾਲੂ'
+                  : currentLang === 'hi'
+                    ? '2G लाइट चालू'
+                    : '2G Lite ON'
+                : currentLang === 'pa'
+                  ? '2G/3G ਲਾਈਟ ਮੋਡ'
+                  : currentLang === 'hi'
+                    ? '2G/3G लाइट मोड'
+                    : '2G/3G Lite'}
+            </span>
+          </button>
         </div>
 
         <div className="order-2 flex shrink-0 items-center justify-end gap-1 sm:order-3 sm:gap-2">

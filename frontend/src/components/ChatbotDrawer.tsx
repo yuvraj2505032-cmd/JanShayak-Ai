@@ -7,6 +7,13 @@ import { buildAiKnowledgeSummary } from '../utils/adminSchemeManager';
 import { generateOfflineChatReply } from '../utils/offlineCache';
 import { INDIAN_22_LANGUAGES, getIndianLanguageConfig } from '../utils/indianLanguages';
 import { apiUrl } from '../lib/apiUrl';
+import { printSchemeDocument } from '../utils/printHelper';
+import { loadPhoneAlertSubscription, dispatchSchemeAlertToPhone } from '../utils/phoneAlertService';
+import {
+  SAMPLE_PHOTO_JAWAB_PRESETS,
+  SamplePhotoJawabPreset,
+  analyzePhotoJawabInput,
+} from '../utils/photoJawabHelper';
 import {
   X,
   Send,
@@ -19,6 +26,9 @@ import {
   ShieldCheck,
   ArrowRight,
   Radio,
+  Download,
+  Smartphone,
+  Camera,
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -29,6 +39,8 @@ interface ChatMessage {
   recommendedSchemeIds?: string[];
   isAiGrounded?: boolean;
   officialSources?: Array<{ title: string; url: string }>;
+  imagePreviewUrl?: string;
+  imageLabel?: string;
 }
 
 interface ChatbotDrawerProps {
@@ -76,6 +88,7 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const fallbackIndexRef = useRef<number>(0);
+  const chatPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const t = TRANSLATIONS[assistantLang];
   const activeLangConfig = getIndianLanguageConfig(voiceLanguage);
@@ -441,6 +454,134 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
     }
   };
 
+  const handleSendPhotoJawab = async (payload: {
+    presetKey?: string;
+    fileName: string;
+    rawText?: string;
+    imageBase64?: string;
+    mimeType?: string;
+    previewUrl: string;
+    displayLabel: string;
+  }) => {
+    if (isLoading) return;
+    const targetLocale = voiceLanguage;
+    const userPromptText =
+      inputText.trim() ||
+      (activeLangConfig.prefix === 'pa'
+        ? `📸 ਫ਼ੋਟੋ ਭੇਜੀ: ${payload.displayLabel} — ਇਹਦੇ ਵਿੱਚ ਕੀ ਲਿਖਿਆ ਆ, ਅੱਗੇ ਕੀ ਕਰਨਾ ਆ?`
+        : activeLangConfig.scriptFamily === 'devanagari'
+          ? `📸 फोटो भेजी: ${payload.displayLabel} — इसमें क्या लिखा है, आगे क्या करना है?`
+          : `📸 Sent Photo: ${payload.displayLabel} — Ehde ch ki likheya aa, agge ki karna aa?`);
+
+    const userMsg: ChatMessage = {
+      id: `user-photo-${Date.now()}`,
+      sender: 'user',
+      text: userPromptText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      imagePreviewUrl: payload.previewUrl,
+      imageLabel: payload.displayLabel,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInputText('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(apiUrl('/api/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userPromptText,
+          language: targetLocale,
+          userProfile,
+          knowledgeBase: buildAiKnowledgeSummary(schemes),
+          consentGiven: hasConsent,
+          imageBase64: payload.imageBase64 || payload.previewUrl,
+          mimeType: payload.mimeType || 'image/jpeg',
+          photoPresetKey: payload.presetKey || '',
+          photoFileName: payload.fileName,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Photo chat API fallback');
+      }
+
+      const data = await response.json();
+      const assistantMsg: ChatMessage = {
+        id: `assistant-photo-${Date.now()}`,
+        sender: 'assistant',
+        text: data.reply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        recommendedSchemeIds: data.recommendedSchemeIds || [],
+        isAiGrounded: true,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+      if (autoSpeakEnabled) {
+        window.setTimeout(() => {
+          handleSpeak(assistantMsg.id, assistantMsg.text, targetLocale);
+        }, 200);
+      }
+    } catch {
+      const localAnalysis = analyzePhotoJawabInput({
+        presetKey: payload.presetKey,
+        fileName: payload.fileName,
+        rawText: `${payload.rawText || ''} ${userPromptText}`.trim(),
+        language: targetLocale,
+      });
+      const fallbackMsg: ChatMessage = {
+        id: `assistant-photo-${Date.now()}`,
+        sender: 'assistant',
+        text: localAnalysis.formattedReply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        recommendedSchemeIds: localAnalysis.unlockedSchemeIds,
+        isAiGrounded: true,
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+      if (autoSpeakEnabled) {
+        window.setTimeout(() => {
+          handleSpeak(fallbackMsg.id, fallbackMsg.text, targetLocale);
+        }, 200);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChatPhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      void handleSendPhotoJawab({
+        fileName: file.name,
+        imageBase64: dataUrl,
+        mimeType: file.type || 'image/jpeg',
+        previewUrl: dataUrl || SAMPLE_PHOTO_JAWAB_PRESETS[0].previewSvgDataUrl,
+        displayLabel: file.name,
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleSelectSamplePhotoInChat = (preset: SamplePhotoJawabPreset) => {
+    const label =
+      activeLangConfig.prefix === 'pa'
+        ? preset.shortLabelPa
+        : activeLangConfig.scriptFamily === 'devanagari'
+          ? preset.shortLabelHi
+          : preset.shortLabelEn;
+    void handleSendPhotoJawab({
+      presetKey: preset.key,
+      fileName: preset.sampleFileName,
+      rawText: preset.sampleRawText,
+      previewUrl: preset.previewSvgDataUrl,
+      displayLabel: label,
+    });
+  };
+
   const handleLanguageSelectChange = (locale: string) => {
     setVoiceLanguage(locale);
     const nextCfg = getIndianLanguageConfig(locale);
@@ -670,6 +811,16 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                   </div>
                 )}
 
+                {msg.imagePreviewUrl && (
+                  <div className="mb-2 rounded-xl overflow-hidden border border-white/25 bg-slate-900/40">
+                    <img
+                      src={msg.imagePreviewUrl}
+                      alt={msg.imageLabel || 'Uploaded document photo'}
+                      className="w-full max-h-36 object-contain bg-white"
+                    />
+                  </div>
+                )}
+
                 <div className="text-xs sm:text-sm leading-relaxed">{msg.text}</div>
 
                 {!isUser && msg.officialSources && msg.officialSources.length > 0 && (
@@ -719,18 +870,59 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                     return (
                       <div
                         key={scheme.id}
-                        onClick={() => onOpenSchemeModal(scheme)}
-                        className="bg-white p-2.5 rounded-xl border border-blue-200 hover:border-blue-400 cursor-pointer shadow-xs transition-all flex items-center justify-between gap-2 group"
+                        className="bg-white p-2.5 rounded-xl border border-blue-200 hover:border-blue-400 shadow-xs transition-all space-y-2"
                       >
-                        <div>
-                          <div className="font-bold text-xs text-blue-900 group-hover:text-blue-700">
-                            {schemeTitle}
+                        <div
+                          onClick={() => onOpenSchemeModal(scheme)}
+                          className="cursor-pointer flex items-center justify-between gap-2 group"
+                        >
+                          <div>
+                            <div className="font-bold text-xs text-blue-900 group-hover:text-blue-700">
+                              {schemeTitle}
+                            </div>
+                            <div className="text-[10px] text-teal-700 font-semibold mt-0.5">
+                              {scheme.benefitAmountText}
+                            </div>
                           </div>
-                          <div className="text-[10px] text-teal-700 font-semibold mt-0.5">
-                            {scheme.benefitAmountText}
-                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-blue-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
                         </div>
-                        <ArrowRight className="w-3.5 h-3.5 text-blue-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
+
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              printSchemeDocument(
+                                scheme,
+                                activeLangConfig.prefix === 'pa'
+                                  ? 'pa'
+                                  : activeLangConfig.prefix === 'hi'
+                                    ? 'hi'
+                                    : 'en'
+                              )
+                            }
+                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 text-[10px] font-bold text-indigo-900 cursor-pointer"
+                          >
+                            <Download className="w-3 h-3 text-indigo-700" />
+                            <span>
+                              {activeLangConfig.prefix === 'pa'
+                                ? 'ਗਾਈਡ ਡਾਊਨਲੋਡ (PDF)'
+                                : activeLangConfig.prefix === 'hi'
+                                  ? 'गाइड डाउनलोड (PDF)'
+                                  : 'Download Guide (PDF)'}
+                            </span>
+                          </button>
+
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[10px] font-bold text-emerald-900">
+                            <Smartphone className="w-3 h-3 text-emerald-700" />
+                            <span>
+                              {activeLangConfig.prefix === 'pa'
+                                ? '🤖 AI ਆਟੋ-SMS ਐਕਟਿਵ'
+                                : activeLangConfig.prefix === 'hi'
+                                  ? '🤖 AI ऑटो-SMS सक्रिय'
+                                  : '🤖 AI Auto-SMS Active'}
+                            </span>
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
@@ -752,6 +944,68 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
         )}
 
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* Photo Bhejo, Jawab Pao Bar (Ration Card • Bill • Form) */}
+      <div className="px-3 py-2 bg-amber-50/90 border-t border-amber-200/80">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className="text-[10px] font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1">
+            <Camera className="w-3.5 h-3.5 text-amber-700" />
+            <span>
+              {activeLangConfig.prefix === 'pa'
+                ? 'ਫ਼ੋਟੋ ਭੇਜੋ, ਜਵਾਬ ਪਾਓ (ਇਹਦੇ ਚ ਕੀ ਲਿਖਿਆ ਆ, ਅੱਗੇ ਕੀ ਕਰਨਾ ਆ):'
+                : activeLangConfig.scriptFamily === 'devanagari'
+                  ? 'फोटो भेजो, जवाब पाओ (इसमें क्या लिखा है, आगे क्या करना है):'
+                  : 'Photo Bhejo, Jawab Pao (Ration Card, Bill, Form):'}
+            </span>
+          </span>
+          <input
+            ref={chatPhotoInputRef}
+            type="file"
+            accept="image/*"
+            data-testid="chatbot-photo-file-input"
+            onChange={handleChatPhotoFileSelect}
+            className="hidden"
+          />
+          <button
+            type="button"
+            data-testid="chatbot-photo-upload-btn"
+            onClick={() => chatPhotoInputRef.current?.click()}
+            className="inline-flex items-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 text-[10px] font-extrabold shadow-2xs transition cursor-pointer shrink-0"
+          >
+            <Camera className="w-3 h-3" />
+            <span>
+              {activeLangConfig.prefix === 'pa'
+                ? 'ਫ਼ੋਟੋ ਅਪਲੋਡ'
+                : activeLangConfig.scriptFamily === 'devanagari'
+                  ? 'फोटो अपलोड'
+                  : 'Upload Photo'}
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          {SAMPLE_PHOTO_JAWAB_PRESETS.slice(0, 3).map((preset) => {
+            const label =
+              activeLangConfig.prefix === 'pa'
+                ? preset.shortLabelPa
+                : activeLangConfig.scriptFamily === 'devanagari'
+                  ? preset.shortLabelHi
+                  : preset.shortLabelEn;
+            return (
+              <button
+                key={preset.key}
+                type="button"
+                data-testid={`chatbot-photo-preset-${preset.key}`}
+                onClick={() => handleSelectSamplePhotoInChat(preset)}
+                className="inline-flex items-center gap-1 rounded-lg bg-white hover:bg-amber-100 text-amber-950 border border-amber-300 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap transition cursor-pointer shrink-0 shadow-2xs"
+              >
+                <span>{preset.emoji}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Suggested Voice Queries Carousel in Selected Language (All 22 Languages Supported) */}
@@ -802,14 +1056,14 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
         </span>
       </div>
 
-      {/* Input Box Footer with Voice Mic Button */}
+      {/* Input Box Footer with Voice Mic Button & Camera Upload Button */}
       <div className="p-3 bg-white border-t border-slate-200">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void handleSend();
           }}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5"
         >
           {/* Main Voice Mic Button with Localized Label */}
           <button
@@ -835,6 +1089,17 @@ export const ChatbotDrawer: React.FC<ChatbotDrawerProps> = ({
                 <span className="text-xs font-bold">{activeLangConfig.speakButtonLabel}</span>
               </>
             )}
+          </button>
+
+          {/* Camera Photo Upload Button right inside Chat Input Bar */}
+          <button
+            type="button"
+            onClick={() => chatPhotoInputRef.current?.click()}
+            className="p-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-colors cursor-pointer shrink-0"
+            title="Photo Bhejo, Jawab Pao (Ration Card, Bill, Form)"
+            aria-label="Upload photo of Ration card, bill, or form"
+          >
+            <Camera className="w-4 h-4 text-amber-700" />
           </button>
 
           <input

@@ -65,3 +65,19 @@ html.dark {
     display: block !important;
   }
 }
+
+/* Rural 2G/3G Low-Internet Lite Mode (Text-First, Zero Heavy Gradients/Blurs/Animations) */
+html.lite-2g-mode *,
+html.lite-2g-mode ::before,
+html.lite-2g-mode ::after {
+  animation: none !important;
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+html.lite-2g-mode iframe {
+  display: none !important;
+}
+

@@ -27,9 +27,11 @@ import {
   Printer,
   Calculator,
   Pencil,
-  Trash2
+  Trash2,
+  Smartphone
 } from 'lucide-react';
 import { printSchemeDocument } from '../utils/printHelper';
+import { loadPhoneAlertSubscription, dispatchSchemeAlertToPhone } from '../utils/phoneAlertService';
 
 interface SchemeCardProps {
   scheme: Scheme;
@@ -593,6 +595,40 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
             >
               <Scan className="w-3.5 h-3.5 text-teal-600" />
               <span className="hidden sm:inline">{currentLang === 'pa' ? 'ਸਕੈਨ' : currentLang === 'hi' ? 'स्कैन' : 'Scan Docs'}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => printSchemeDocument(scheme, currentLang)}
+            data-testid={`download-guide-pdf-btn-${scheme.id}`}
+            className="flex items-center gap-1 text-[11px] font-bold text-indigo-800 hover:text-indigo-950 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+            title="Download Guide (PDF) with required documents list and steps for Sewa Kendra"
+          >
+            <Download className="w-3.5 h-3.5 text-indigo-700" />
+            <span>{currentLang === 'pa' ? 'ਗਾਈਡ (PDF)' : currentLang === 'hi' ? 'गाइड (PDF)' : 'Download Guide (PDF)'}</span>
+          </button>
+
+          {isAdminRole && (
+            <button
+              type="button"
+              onClick={() => {
+                const sub = loadPhoneAlertSubscription();
+                const phone = sub.phoneNumber || '9876543210';
+                dispatchSchemeAlertToPhone({
+                  phoneNumber: phone,
+                  scheme,
+                  alertType: 'scheme_guide',
+                  language: currentLang,
+                  triggeredBy: 'Admin Broadcast',
+                }).catch(() => {});
+              }}
+              data-testid={`send-scheme-sms-btn-${scheme.id}`}
+              className="flex items-center gap-1 text-[11px] font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+              title="Admin Broadcast: Dispatch Official Scheme SMS Alert to Registered Citizen Phone"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
+              <span className="hidden sm:inline">{currentLang === 'pa' ? 'Admin SMS' : 'Admin SMS'}</span>
             </button>
           )}
 

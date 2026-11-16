@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Language, Scheme } from '../types/scheme';
+import { PhoneAlertCenter } from './PhoneAlertCenter';
 import {
   getUpcomingSavedSchemeDeadlines,
   getUnsavedUpcomingSchemeDeadlines,
@@ -404,6 +405,9 @@ export const SavedDeadlineBanner: React.FC<SavedDeadlineBannerProps> = ({
               </div>
             </div>
           )}
+
+          {/* Direct Phone Number SMS / WhatsApp Alert Box on Dashboard */}
+          <PhoneAlertCenter currentLang={currentLang} schemes={schemes} compact />
         </div>
       )}
     </section>

@@ -56,7 +56,7 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
   const [selectedSchemeId, setSelectedSchemeId] = useState<string>(
     targetScheme?.id || schemesList[0]?.id || 'pm-kisan'
   );
-  const [scannerTab, setScannerTab] = useState<'quick-scan' | 'upload-ocr' | 'impact-detector'>('quick-scan');
+  const [scannerTab, setScannerTab] = useState<'quick-scan' | 'upload-ocr' | 'impact-detector' | 'form-simplifier'>('quick-scan');
   const [scanningDocKey, setScanningDocKey] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [scannedFeedback, setScannedFeedback] = useState<string | null>(null);
@@ -359,6 +359,18 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                 >
                   High-Impact Missing ({profileWide.highImpactMissingDocs.length})
                 </button>
+                <button
+                  type="button"
+                  data-testid="scanner-mode-simplifier"
+                  onClick={() => setScannerTab('form-simplifier')}
+                  className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    scannerTab === 'form-simplifier'
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  📋 Form Helper (Simplifier)
+                </button>
               </div>
             </div>
 
@@ -608,6 +620,83 @@ export const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
                     All documents across your eligible schemes are verified in your wallet!
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* TAB 4: APPLICATION FORM HELPER (OCR / SIMPLIFIER) */}
+            {scannerTab === 'form-simplifier' && (
+              <div
+                data-testid="form-helper-simplifier-panel"
+                className="space-y-3 bg-slate-800/80 border border-amber-400/40 rounded-xl p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-300">
+                      AI Application Form Simplifier • Zero Rejection Guide
+                    </span>
+                    <h5 className="text-sm font-black text-white mt-0.5">
+                      {currentLang === 'pa'
+                        ? `ਸਰਲ ਫਾਰਮ ਭਰਨ ਦੀ ਗਾਈਡ: ${targetReport.titlePa}`
+                        : currentLang === 'hi'
+                          ? `सरल फॉर्म भरने की गाइड: ${targetReport.titleHi}`
+                          : `Simplified Form-Filling Guide: ${targetReport.titleEn}`}
+                    </h5>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="rounded-xl bg-slate-900/90 border border-slate-700 p-3 space-y-1">
+                    <div className="font-extrabold text-teal-300">
+                      1. {currentLang === 'pa' ? 'ਬਿਨੈਕਾਰ ਦਾ ਨਾਮ ਅਤੇ ਆਧਾਰ (Box 1-2)' : currentLang === 'hi' ? 'आवेदक का नाम व आधार (बॉक्स 1-2)' : 'Applicant Name & Aadhaar (Box 1-2)'}
+                    </div>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      {currentLang === 'pa'
+                        ? 'ਆਪਣਾ ਨਾਮ ਬਿਲਕੁਲ ਆਧਾਰ ਕਾਰਡ ਵਾਲੀ ਸਪੈਲਿੰਗ ਅਨੁਸਾਰ ਲਿਖੋ। ਨਾਮ ਵਿੱਚ ਫ਼ਰਕ ਹੋਣ ਤੇ ਪੋਰਟਲ ਫਾਰਮ ਰੱਦ ਕਰ ਦਿੰਦਾ ਹੈ।'
+                        : currentLang === 'hi'
+                          ? 'अपना नाम बिल्कुल आधार कार्ड की स्पेलिंग के अनुसार लिखें। स्पेलिंग अलग होने पर फॉर्म अस्वीकार हो सकता है।'
+                          : 'Write your exact name spelling as printed on your Aadhaar Card. Spelling mismatch with bank passbook is the #1 reason for DBT hold.'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/90 border border-slate-700 p-3 space-y-1">
+                    <div className="font-extrabold text-teal-300">
+                      2. {currentLang === 'pa' ? 'ਬੈਂਕ ਖਾਤਾ ਅਤੇ IFSC ਕੋਡ (DBT Box)' : currentLang === 'hi' ? 'बैंक खाता और IFSC कोड (DBT बॉक्स)' : 'Bank Account & NPCI Seeding (DBT Box)'}
+                    </div>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      {currentLang === 'pa'
+                        ? 'ਉਹੀ ਬੈਂਕ ਖਾਤਾ ਨੰਬਰ ਭਰੋ ਜੋ ਆਧਾਰ NPCI ਨਾਲ ਲਿੰਕ (DBT Enabled) ਹੈ। ਸਾਂਝਾ (Joint) ਖਾਤਾ ਨਾ ਭਰੋ।'
+                        : currentLang === 'hi'
+                          ? 'वही बैंक खाता संख्या भरें जो आधार NPCI से लिंक (DBT सक्रिय) हो।'
+                          : 'Enter your single-holder Aadhaar-NPCI seeded bank account and 11-character IFSC code printed on the first page of your passbook.'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/90 border border-slate-700 p-3 space-y-1">
+                    <div className="font-extrabold text-amber-300">
+                      3. {currentLang === 'pa' ? 'ਈ-ਸੇਵਾ ਸਰਟੀਫਿਕੇਟ ਬਾਰਕੋਡ ਨੰਬਰ' : currentLang === 'hi' ? 'ई-सेवा प्रमाण पत्र बारकोड संख्या' : 'e-Sewa Certificate Barcode / Ref Number'}
+                    </div>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      {currentLang === 'pa'
+                        ? 'ਆਮਦਨ ਜਾਂ ਜਾਤੀ ਸਰਟੀਫਿਕੇਟ ਦੇ ਹੇਠਾਂ ਛਪਿਆ ESW/PB ਹੋਲੋਗ੍ਰਾਮ ਨੰਬਰ ਭਰੋ। ਆਮਦਨ ਸਰਟੀਫਿਕੇਟ 1 ਸਾਲ ਤੋਂ ਪੁਰਾਣਾ ਨਹੀਂ ਹੋਣਾ ਚਾਹੀਦਾ।'
+                        : currentLang === 'hi'
+                          ? 'आय या जाति प्रमाण पत्र के नीचे छपा ESW/PB बारकोड नंबर दर्ज करें। आय प्रमाण पत्र 1 वर्ष के भीतर जारी होना चाहिए।'
+                          : 'Enter the ESW/PB barcode number printed at the bottom of your Punjab Sewa Kendra Income/Caste/Residence certificate.'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/90 border border-slate-700 p-3 space-y-1">
+                    <div className="font-extrabold text-emerald-300">
+                      4. {currentLang === 'pa' ? 'ਸੇਵਾ ਕੇਂਦਰ ਰਸੀਦ ਅਤੇ ਮੋਬਾਈਲ ਨੰਬਰ' : currentLang === 'hi' ? 'सेवा केंद्र रसीद व मोबाइल नंबर' : 'Active Mobile Number for OTP & SMS Alerts'}
+                    </div>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      {currentLang === 'pa'
+                        ? 'ਆਪਣਾ ਚੱਲਦਾ 10-ਅੰਕਾਂ ਦਾ ਮੋਬਾਈਲ ਨੰਬਰ ਦਿਓ ਤਾਂ ਜੋ ਮਨਜ਼ੂਰੀ ਅਤੇ ਪੈਸੇ ਆਉਣ ਦਾ SMS ਤੁਹਾਡੇ ਫ਼ੋਨ ਤੇ ਆ ਸਕੇ।'
+                        : currentLang === 'hi'
+                          ? 'अपना चालू 10-अंकीय मोबाइल नंबर दर्ज करें ताकि स्वीकृति व भुगतान का SMS आपके फ़ोन पर आए।'
+                          : 'Provide your active mobile number linked with Aadhaar to receive OTP verification and DBT approval SMS updates.'}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

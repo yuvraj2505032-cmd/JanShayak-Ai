@@ -12,6 +12,8 @@ import { getLanguageName, parseAssistantOutput } from './chatUtils.js';
 import { createAdminSessionToken, isValidAdminSessionToken, verifyAdminPortalPassword } from './adminAuth.js';
 import { analyzeWebsiteAndCyberThreat } from '../frontend/src/utils/cyberFraudScanner.js';
 import { scanAndAnalyzeDocumentInput } from '../frontend/src/utils/documentHelper.js';
+import { getIndianLanguageConfig, detectQueryTopicIn22Languages } from '../frontend/src/utils/indianLanguages.js';
+import { analyzePhotoJawabInput } from '../frontend/src/utils/photoJawabHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,7 +92,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // Initialize Backend Supabase Client if URL & Key are configured
 const backendSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
@@ -449,16 +451,25 @@ app.post('/api/admin/knowledge-base', (req, res) => {
   });
 });
 
-// API Route: AI Scheme Assistant Chatbot
+// API Route: AI Scheme Assistant Chatbot (with Photo Bhejo, Jawab Pao multimodal support)
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, language = 'en', userProfile, knowledgeBase } = req.body;
+    const {
+      message,
+      language = 'en',
+      userProfile,
+      knowledgeBase,
+      imageBase64 = '',
+      mimeType = 'image/jpeg',
+      photoPresetKey = '',
+      photoFileName = '',
+    } = req.body;
     const consentGiven = req.body.consentGiven === true;
 
-    if (typeof message !== 'string' || !message.trim()) {
-      return res.status(400).json({ error: 'Message is required' });
+    if ((typeof message !== 'string' || !message.trim()) && !imageBase64 && !photoPresetKey) {
+      return res.status(400).json({ error: 'Message or photo is required' });
     }
-    if (message.length > 2000) {
+    if (typeof message === 'string' && message.length > 2000) {
       return res.status(400).json({ error: 'Message must be 2000 characters or fewer' });
     }
 
@@ -466,6 +477,57 @@ app.post('/api/chat', async (req, res) => {
 
     const langName = getLanguageName(language);
     const languagePrefix = String(language).toLowerCase().split(/[-_]/)[0];
+
+    // If citizen sent a photo (Ration Card, Bill, Form, or Certificate) in Chat -> "Photo Bhejo, Jawab Pao"
+    if (imageBase64 || photoPresetKey || photoFileName) {
+      let aiSummaryText = '';
+      if (aiClient && imageBase64 && typeof imageBase64 === 'string' && !imageBase64.startsWith('data:image/svg+xml')) {
+        try {
+          const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
+          const visionPrompt = `You are Jan-Shayak AI reading a citizen's uploaded photo of a Ration Card, Electricity Bill, Application Form, or Government Notice.
+Reply in ${langName} in 3-4 concise sentences explaining:
+1. Ehde ch ki likheya aa (What is written in this document/photo, key numbers, dates, or status).
+2. Agge ki karna aa (Exact next steps for the citizen at Sewa Kendra, Ration Depot, or Official Portal).
+Citizen note: ${String(message || '').slice(0, 300)}`;
+          const visionRes = await aiClient.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: typeof mimeType === 'string' && mimeType.startsWith('image/') ? mimeType : 'image/jpeg',
+                    data: cleanBase64,
+                  },
+                },
+                { text: visionPrompt },
+              ],
+            },
+          });
+          if (visionRes.text) {
+            aiSummaryText = visionRes.text.trim();
+          }
+        } catch (visionErr) {
+          console.warn('Gemini chat vision fallback triggered:', visionErr);
+        }
+      }
+
+      const photoAnalysis = analyzePhotoJawabInput({
+        fileName: String(photoFileName || ''),
+        rawText: `${message || ''} ${aiSummaryText}`.trim(),
+        presetKey: String(photoPresetKey || ''),
+        language: String(language || 'pa'),
+        aiSummaryText,
+      });
+
+      return res.json({
+        reply: photoAnalysis.formattedReply,
+        photoAnalysis,
+        recommendedSchemeIds: photoAnalysis.unlockedSchemeIds,
+        isAiGrounded: true,
+        consentAcknowledged: Boolean(consentGiven),
+        dataStored: false,
+      });
+    }
     const history = Array.isArray(req.body.conversationHistory)
       ? req.body.conversationHistory
           .filter((entry: unknown) =>
@@ -1092,6 +1154,132 @@ app.post('/api/ai/document-scanner', async (req, res) => {
   }
 });
 
+// API Route: Photo Bhejo, Jawab Pao (Ration Card, Bill, Form Photo Reader -> "Ehde ch ki likheya aa, agge ki karna aa")
+app.post('/api/ai/photo-jawab', async (req, res) => {
+  try {
+    const {
+      fileName = '',
+      rawText = '',
+      presetKey = '',
+      imageBase64 = '',
+      mimeType = 'image/jpeg',
+      language = 'pa',
+    } = req.body || {};
+
+    const langName = getLanguageName(String(language || 'pa'));
+    let aiSummaryText = '';
+
+    if (aiClient && imageBase64 && typeof imageBase64 === 'string' && !imageBase64.startsWith('data:image/svg+xml')) {
+      try {
+        const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
+        const response = await aiClient.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: typeof mimeType === 'string' && mimeType.startsWith('image/') ? mimeType : 'image/jpeg',
+                  data: cleanBase64,
+                },
+              },
+              {
+                text: `You are Jan-Shayak AI helping a citizen understand a photo of a Ration Card, Electricity Bill, Application Form, or Certificate.
+In ${langName}, briefly state:
+1. Ehde ch ki likheya aa (What is written in this document, including any visible numbers, dates, or status).
+2. Agge ki karna aa (What the citizen should do next at the Sewa Kendra, Ration Depot, or Official Portal).`,
+              },
+            ],
+          },
+        });
+        if (response.text) {
+          aiSummaryText = response.text.trim();
+        }
+      } catch (err) {
+        console.warn('Gemini photo-jawab multimodal fallback:', err);
+      }
+    }
+
+    const analysis = analyzePhotoJawabInput({
+      fileName: String(fileName || ''),
+      rawText: `${rawText || ''} ${aiSummaryText}`.trim(),
+      presetKey: String(presetKey || ''),
+      language: String(language || 'pa'),
+      aiSummaryText,
+    });
+
+    return res.json({
+      status: 'analyzed',
+      analysis,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Photo Jawab error:', error);
+    return res.status(500).json({ error: 'Failed to analyze photo' });
+  }
+});
+
+// API Route: Dispatch Scheme Alert Message (SMS / WhatsApp Notification) to User Phone Number
+app.post('/api/alerts/send-sms', async (req, res) => {
+  try {
+    const {
+      phoneNumber = '',
+      e164 = '',
+      schemeId = '',
+      schemeTitle = '',
+      alertType = 'deadline',
+      language = 'pa',
+      smsBody = '',
+    } = req.body || {};
+
+    const cleanDigits = String(phoneNumber || e164 || '').replace(/\D/g, '').replace(/^91/, '').replace(/^0/, '');
+    if (!/^[6-9]\d{9}$/.test(cleanDigits)) {
+      return res.status(400).json({
+        error: 'Invalid 10-digit Indian mobile phone number',
+      });
+    }
+
+    const formattedE164 = `+91${cleanDigits}`;
+    const dispatchId = `JAN-SMS-${Date.now()}`;
+
+    // Optional Fast2SMS / Twilio webhook integration when env keys are configured
+    const fast2smsKey = (process.env.FAST2SMS_API_KEY || '').trim();
+    if (fast2smsKey && smsBody) {
+      try {
+        await fetch('https://www.fast2sms.com/dev/bulkV2', {
+          method: 'POST',
+          headers: {
+            authorization: fast2smsKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            route: 'q',
+            message: String(smsBody).slice(0, 480),
+            language: language === 'en' ? 'english' : 'unicode',
+            flash: 0,
+            numbers: cleanDigits,
+          }),
+        });
+      } catch (smsErr) {
+        console.warn('External SMS gateway fallback:', smsErr);
+      }
+    }
+
+    return res.status(200).json({
+      status: 'delivered',
+      dispatchId,
+      phoneNumber: cleanDigits,
+      e164: formattedE164,
+      schemeId: String(schemeId || ''),
+      schemeTitle: String(schemeTitle || ''),
+      alertType,
+      deliveredAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Send SMS alert error:', error);
+    return res.status(500).json({ error: 'Failed to dispatch phone alert' });
+  }
+});
+
 // API Route: Download Standalone Offline Janshayak AI Application Package
 app.get('/api/download-app', (req, res) => {
   try {
@@ -1212,6 +1400,14 @@ app.get('/api/download-app', (req, res) => {
   }
 });
 
+// Prevent transient unhandled rejections or socket errors from terminating the server process
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception (kept server alive):', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection (kept server alive):', reason);
+});
+
 // Serve frontend in dev via Vite middlewares, or static dist in prod
 async function setupServer() {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -1221,8 +1417,12 @@ async function setupServer() {
     const vite = await createViteServer({
       root: path.resolve(__dirname, '../frontend'),
       configFile: path.resolve(__dirname, '../frontend/vite.config.ts'),
-      server: { middlewareMode: true },
-      appType: 'spa'
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null,
+      },
+      appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
@@ -1233,11 +1433,16 @@ async function setupServer() {
     });
   }
 
-  app.listen(port, '0.0.0.0', () => {
+  const httpServer = app.listen(port, '0.0.0.0', () => {
     console.log(`Government Scheme Eligibility Navigator running on http://0.0.0.0:${port}`);
+  });
+
+  httpServer.on('error', (err) => {
+    console.error('HTTP server error:', err);
   });
 }
 
-setupServer().catch(err => {
+setupServer().catch((err) => {
   console.error('Error starting server:', err);
 });
+

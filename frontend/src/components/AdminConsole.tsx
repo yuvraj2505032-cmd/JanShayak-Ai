@@ -26,6 +26,7 @@ import { getSchemeYoutubeBundle } from '../data/schemeVideos';
 import { parseCitizenProfile } from '../lib/citizenCloudSync';
 import { supabase } from '../lib/supabase';
 import { apiUrl } from '../lib/apiUrl';
+import { PhoneAlertCenter } from './PhoneAlertCenter';
 
 export interface AiAdminLogEntry {
   id: string;
@@ -616,6 +617,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Admin & AI Official SMS Broadcast Controller */}
+            <PhoneAlertCenter currentLang="pa" schemes={allSchemes} isAdminMode={true} />
+
             {/* Manual Add / Edit Scheme Form */}
             <form
               onSubmit={handleSchemeFormSubmit}

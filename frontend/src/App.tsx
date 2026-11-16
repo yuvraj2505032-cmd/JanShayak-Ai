@@ -32,6 +32,7 @@ import {
   type AdvancedSearchFilters,
 } from './utils/advancedSchemeFilter';
 import { setOfflineRecentlyViewed } from './utils/offlineCache';
+import { loadPhoneAlertSubscription, dispatchSchemeAlertToPhone } from './utils/phoneAlertService';
 
 // Components (eagerly imported so 100% of tabs and modals work offline without network chunk errors)
 import { HeroBanner } from './components/HeroBanner';
@@ -58,6 +59,7 @@ import { AiSchemeAdvisorModal } from './components/AiSchemeAdvisorModal';
 import { AiProfileRoadmapModal } from './components/AiProfileRoadmapModal';
 import { AdminConsole } from './components/AdminConsole';
 import { SavedDeadlineBanner } from './components/SavedDeadlineBanner';
+import { PhotoJawabModal } from './components/PhotoJawabModal';
 import { OfflineIndicator } from './components/PWAInstallButton';
 import { DEFAULT_OFFICIAL_PORTALS, AI_DISCOVERABLE_SCHEMES_POOL } from './data/officialPortals';
 import { ALL_STATES_SCHEMES_POOL, generateAutonomousAiSchemeBundle, INDIA_STATES_AND_UTS, getDistrictsForState } from './data/indiaStatesAndDistricts';
@@ -98,7 +100,8 @@ import {
   Home,
   Scan,
   BarChart3,
-  CheckCircle2
+  CheckCircle2,
+  Camera
 } from 'lucide-react';
 
 const DEFAULT_PROFILE: CitizenProfile = {
@@ -315,6 +318,7 @@ export default function App() {
   const [schemeForDocumentsModal, setSchemeForDocumentsModal] = useState<Scheme | null>(null);
   const [aiAdvisorScheme, setAiAdvisorScheme] = useState<Scheme | null>(null);
   const [isAiRoadmapOpen, setIsAiRoadmapOpen] = useState<boolean>(false);
+  const [isPhotoJawabOpen, setIsPhotoJawabOpen] = useState<boolean>(false);
 
   // Saved schemes storage
   const [savedSchemeIds, setSavedSchemeIds] = useState<Set<string>>(() => {
@@ -709,6 +713,18 @@ export default function App() {
           },
           ...prev
         ]);
+
+        // AI Autonomous Engine automatically sends SMS code & scheme alert to registered citizen phone
+        const activeSub = loadPhoneAlertSubscription();
+        if (activeSub.enabled && activeSub.phoneNumber) {
+          void dispatchSchemeAlertToPhone({
+            phoneNumber: activeSub.phoneNumber,
+            scheme: schemeToAdd,
+            alertType: 'new_scheme',
+            language: currentLang,
+            triggeredBy: 'AI Autonomous Engine',
+          });
+        }
       }
     } finally {
       setIsAiDiscovering(false);
@@ -1709,19 +1725,130 @@ export default function App() {
               );
             })()}
 
+            {/* Photo Bhejo, Jawab Pao Banner Card (Ration Card, Bill, Form Photo Reader) */}
+            <section
+              data-testid="dashboard-photo-jawab-banner"
+              className="rounded-2xl bg-gradient-to-r from-indigo-950 via-blue-900 to-teal-900 text-white p-4 sm:p-5 shadow-md border border-indigo-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+            >
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-300/40 flex items-center justify-center shrink-0">
+                  <Camera className="w-6 h-6 text-amber-300" />
+                </div>
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 border border-amber-300/30 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-200">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Photo Bhejo, Jawab Pao • ਫ਼ੋਟੋ ਭੇਜੋ, ਜਵਾਬ ਪਾਓ</span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    {currentLang === 'pa'
+                      ? 'ਰਾਸ਼ਨ ਕਾਰਡ, ਬਿੱਲ, ਫਾਰਮ ਦੀ ਫ਼ੋਟੋ ਭੇਜੋ — ਜਨ-ਸਹਾਇਕ ਪੜ੍ਹ ਕੇ ਦੱਸੇਗਾ: "ਇਹਦੇ ਚ ਕੀ ਲਿਖਿਆ ਆ, ਅੱਗੇ ਕੀ ਕਰਨਾ ਆ"'
+                      : currentLang === 'hi'
+                        ? 'राशन कार्ड, बिल, फॉर्म की फोटो भेजें — जन-सहायक पढ़कर बताएगा: "इसमें क्या लिखा है, आगे क्या करना है"'
+                        : 'Photo Bhejo, Jawab Pao: Send Ration Card, Bill, or Form Photo — "Ehde ch ki likheya aa, agge ki karna aa"'}
+                  </h3>
+                  <p className="text-xs text-teal-100">
+                    {currentLang === 'pa'
+                      ? 'ਆਪਣੇ ਰਾਸ਼ਨ ਕਾਰਡ, ਬਿਜਲੀ ਬਿੱਲ ਜਾਂ ਸਰਕਾਰੀ ਫਾਰਮ ਦੀ ਫ਼ੋਟੋ ਅਪਲੋਡ ਕਰੋ ਅਤੇ ਪੰਜਾਬੀ/ਹਿੰਦੀ ਆਵਾਜ਼ ਵਿੱਚ ਸਿੱਧਾ ਜਵਾਬ ਸੁਣੋ।'
+                      : currentLang === 'hi'
+                        ? 'अपने राशन कार्ड, बिजली बिल या सरकारी फॉर्म की फोटो अपलोड करें और सरल भाषा व आवाज़ में सीधा जवाब पाएं।'
+                        : 'Snap or upload a photo of your Ration Card, Electricity Bill, or Application Form for instant voice & text guidance.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  data-testid="open-photo-jawab-btn"
+                  onClick={() => setIsPhotoJawabOpen(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm px-4 py-2.5 shadow-sm transition cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>
+                    {currentLang === 'pa'
+                      ? '📸 ਫ਼ੋਟੋ ਭੇਜੋ, ਜਵਾਬ ਪਾਓ'
+                      : currentLang === 'hi'
+                        ? '📸 फोटो भेजो, जवाब पाओ'
+                        : '📸 Photo Bhejo, Jawab Pao'}
+                  </span>
+                </button>
+              </div>
+            </section>
+
             {/* Scheme Cards Grid */}
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-                  Explore government schemes
+                  {advancedFilters.savedOnly ? 'Saved government schemes' : 'Explore government schemes'}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Discover benefits and support matched to your needs ({profile.occupation} profile active).
+                  {advancedFilters.savedOnly
+                    ? `Showing only schemes bookmarked by you (${savedSchemeIds.size} saved).`
+                    : `Discover benefits and support matched to your needs (${profile.occupation} profile active).`}
                 </p>
               </div>
-              <span className="text-sm font-medium text-slate-500">
-                {filteredSchemes.length} {filteredSchemes.length === 1 ? 'scheme' : 'schemes'}
-              </span>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Dedicated Single-Button Toggle for Saved Schemes vs All Schemes */}
+                <button
+                  type="button"
+                  data-testid="dashboard-saved-filter-toggle"
+                  aria-pressed={Boolean(advancedFilters.savedOnly)}
+                  onClick={() => handleUpdateAdvancedFilters({ savedOnly: !advancedFilters.savedOnly })}
+                  className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition border cursor-pointer shadow-xs ${
+                    advancedFilters.savedOnly
+                      ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-200'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-300'
+                  }`}
+                >
+                  <Bookmark className={`w-3.5 h-3.5 ${advancedFilters.savedOnly ? 'fill-white text-white' : 'text-amber-600'}`} />
+                  <span>{advancedFilters.savedOnly ? 'Viewing Saved Schemes Only' : 'Show Saved Schemes Only'}</span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[11px] font-extrabold ${
+                      advancedFilters.savedOnly ? 'bg-amber-700/60 text-white' : 'bg-amber-100 text-amber-900'
+                    }`}
+                  >
+                    {savedSchemeIds.size}
+                  </span>
+                </button>
+
+                {/* Explicit All Schemes / Saved Only Segmented Switch */}
+                <div
+                  className="inline-flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200/80"
+                  role="group"
+                  aria-label="Filter between all schemes and saved schemes"
+                >
+                  <button
+                    type="button"
+                    data-testid="dashboard-filter-all-schemes-btn"
+                    onClick={() => handleUpdateAdvancedFilters({ savedOnly: false })}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                      !advancedFilters.savedOnly
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    All ({allSchemes.length})
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="dashboard-filter-saved-schemes-btn"
+                    onClick={() => handleUpdateAdvancedFilters({ savedOnly: true })}
+                    className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                      advancedFilters.savedOnly
+                        ? 'bg-amber-500 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Bookmark className={`w-3 h-3 ${advancedFilters.savedOnly ? 'fill-white text-white' : 'text-amber-600'}`} />
+                    Saved ({savedSchemeIds.size})
+                  </button>
+                </div>
+
+                <span className="text-sm font-medium text-slate-500">
+                  {filteredSchemes.length} {filteredSchemes.length === 1 ? 'scheme' : 'schemes'}
+                </span>
+              </div>
             </div>
 
             {filteredSchemes.length > 0 ? (
@@ -1745,12 +1872,27 @@ export default function App() {
                   />
                 ))}
               </div>
+            ) : advancedFilters.savedOnly && savedSchemeIds.size === 0 ? (
+              <div className="bg-white rounded-2xl border border-amber-200 p-10 text-center space-y-3">
+                <Bookmark className="w-10 h-10 text-amber-500 mx-auto" />
+                <h3 className="font-bold text-slate-800">No saved schemes yet</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Bookmark any government scheme card using the save icon to quickly access and compare your shortlisted schemes here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateAdvancedFilters({ savedOnly: false })}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 mt-2 cursor-pointer"
+                >
+                  Show All Schemes
+                </button>
+              </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
                 <SearchX className="w-10 h-10 text-slate-400 mx-auto" />
                 <h3 className="font-bold text-slate-800">No schemes matched your search criteria</h3>
                 <p className="text-xs text-slate-500">
-                  Try adjusting the search query or switching the category filter back to "All Schemes".
+                  Try adjusting the search query or switching the filter back to "All Schemes".
                 </p>
                 <button
                   type="button"
@@ -2186,6 +2328,20 @@ export default function App() {
         <CyberFraudShieldModal
           currentLang={currentLang}
           onClose={() => setIsFraudModalOpen(false)}
+        />
+      )}
+
+      {/* Photo Bhejo, Jawab Pao Modal (Ration Card, Bill, Form Reader) */}
+      {isPhotoJawabOpen && (
+        <PhotoJawabModal
+          currentLang={currentLang}
+          onClose={() => setIsPhotoJawabOpen(false)}
+          schemes={allSchemes}
+          onOpenSchemeModal={(s) => setSelectedScheme(s)}
+          onOpenChatWithQuestion={(q) => {
+            setAssistantInitialQuestion(q);
+            setIsVoiceAssistantOpen(true);
+          }}
         />
       )}
 

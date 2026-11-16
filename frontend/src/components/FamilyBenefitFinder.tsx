@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FamilyMember, CitizenProfile, Scheme, Language, Occupation, Gender } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { calculateFamilyBenefits } from '../utils/schemeEngine';
+import { PhoneAlertCenter } from './PhoneAlertCenter';
 import { 
   Users, 
   Plus, 
@@ -11,7 +12,8 @@ import {
   Sparkles, 
   ArrowRight,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Download
 } from 'lucide-react';
 
 interface FamilyBenefitFinderProps {
@@ -27,8 +29,7 @@ export const FamilyBenefitFinder: React.FC<FamilyBenefitFinderProps> = ({
 }) => {
   const t = TRANSLATIONS[currentLang];
 
-  // Default realistic demo family for instant demonstration to judges
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
+  const defaultHousehold: FamilyMember[] = [
     {
       id: 'fam-1',
       relation: 'Father',
@@ -73,7 +74,29 @@ export const FamilyBenefitFinder: React.FC<FamilyBenefitFinderProps> = ({
       isStudent: false,
       matchedSchemeIds: []
     }
-  ]);
+  ];
+
+  // Persistent Family Profile Saver for the whole household
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(() => {
+    try {
+      const saved = localStorage.getItem('janshayak_family_household_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return defaultHousehold;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('janshayak_family_household_v1', JSON.stringify(familyMembers));
+    } catch {
+      // ignore
+    }
+  }, [familyMembers]);
 
   const [isAdding, setIsAdding] = useState(false);
   const [newRelation, setNewRelation] = useState<FamilyMember['relation']>('Son');
@@ -143,14 +166,24 @@ export const FamilyBenefitFinder: React.FC<FamilyBenefitFinderProps> = ({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsAdding(!isAdding)}
-            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t.addMember}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/20 text-white font-bold text-xs sm:text-sm px-3.5 py-2.5 rounded-xl transition-all cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>{currentLang === 'pa' ? 'ਪਰਿਵਾਰਕ ਗਾਈਡ (PDF)' : currentLang === 'hi' ? 'परिवार गाइड (PDF)' : 'Download Family Guide (PDF)'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAdding(!isAdding)}
+              className="flex items-center gap-2 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t.addMember}</span>
+            </button>
+          </div>
         </div>
 
         {/* Pooled Household Totals Banner */}
@@ -169,6 +202,9 @@ export const FamilyBenefitFinder: React.FC<FamilyBenefitFinderProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Direct Phone SMS Alert Bar for Household Schemes */}
+      <PhoneAlertCenter currentLang={currentLang} compact />
 
       <p role="note" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         {t.familyDemoNotice}

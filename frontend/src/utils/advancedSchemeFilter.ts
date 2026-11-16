@@ -17,6 +17,7 @@ export interface AdvancedSearchFilters {
   occupation: Occupation | 'All';
   targetGroup: TargetGroupFilter;
   schemeEra?: SchemeEraFilter;
+  savedOnly?: boolean;
 }
 
 export const DEFAULT_ADVANCED_FILTERS: AdvancedSearchFilters = {
@@ -29,6 +30,7 @@ export const DEFAULT_ADVANCED_FILTERS: AdvancedSearchFilters = {
   occupation: 'All',
   targetGroup: 'all',
   schemeEra: 'all',
+  savedOnly: false,
 };
 
 export function isAiAutoAddedScheme(scheme: Scheme): boolean {
@@ -350,6 +352,9 @@ export function filterSchemesAdvanced(
     .filter((evaluation) => {
       const { scheme } = evaluation;
 
+      // 0. Dedicated Saved Schemes Only toggle filter
+      if (filters.savedOnly && !savedSchemeIds.includes(scheme.id)) return false;
+
       // 1. Category or special tab filter
       if (!matchesCategoryFilter(scheme, filters.category, savedSchemeIds)) return false;
 
@@ -438,6 +443,7 @@ export function countActiveAdvancedFilters(filters: AdvancedSearchFilters): numb
   if (filters.occupation !== 'All') count++;
   if (filters.targetGroup !== 'all') count++;
   if (filters.schemeEra && filters.schemeEra !== 'all') count++;
+  if (filters.savedOnly) count++;
   return count;
 }
 

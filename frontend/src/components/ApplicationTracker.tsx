@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { ApplicationTrackerItem, Language, Scheme } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { GOV_SCHEMES } from '../data/schemes';
+import { PhoneAlertCenter } from './PhoneAlertCenter';
+import { loadPhoneAlertSubscription, dispatchSchemeAlertToPhone } from '../utils/phoneAlertService';
+import { printSchemeDocument } from '../utils/printHelper';
 import { 
   BookmarkCheck, 
   Trash2, 
@@ -15,7 +18,9 @@ import {
   FileCheck2,
   Building2,
   ShieldCheck,
-  Search
+  Search,
+  Smartphone,
+  Download
 } from 'lucide-react';
 
 interface ApplicationTrackerProps {
@@ -49,6 +54,37 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
     'Disbursed'
   ];
 
+  const getDisplayStageLabel = (status: ApplicationTrackerItem['status']): string => {
+    if (status === 'Documents Assembled') {
+      return currentLang === 'pa' ? 'Documents Ready (ਦਸਤਾਵੇਜ਼ ਤਿਆਰ)' : currentLang === 'hi' ? 'Documents Ready (दस्तावेज़ तैयार)' : 'Documents Ready';
+    }
+    if (status === 'Form Submitted') {
+      return currentLang === 'pa' ? 'Applied (ਅਪਲਾਈ ਕੀਤਾ)' : currentLang === 'hi' ? 'Applied (आवेदन किया)' : 'Applied';
+    }
+    if (status === 'Approved') {
+      return currentLang === 'pa' ? 'Approved (ਮਨਜ਼ੂਰ ਹੋਇਆ)' : currentLang === 'hi' ? 'Approved (स्वीकृत)' : 'Approved';
+    }
+    if (status === 'Disbursed') {
+      return currentLang === 'pa' ? 'DBT Disbursed (ਪੈਸੇ ਆਏ)' : currentLang === 'hi' ? 'DBT Disbursed (राशि प्राप्त)' : 'DBT Disbursed';
+    }
+    return currentLang === 'pa' ? 'Discovered (ਚੁਣਿਆ)' : currentLang === 'hi' ? 'Discovered (चयनित)' : 'Discovered';
+  };
+
+  const handleStatusClick = (item: ApplicationTrackerItem, nextStatus: ApplicationTrackerItem['status']) => {
+    onUpdateStatus(item.id, nextStatus);
+    const sub = loadPhoneAlertSubscription();
+    if (sub.phoneNumber) {
+      const targetScheme = GOV_SCHEMES.find((s) => s.id === item.schemeId) || GOV_SCHEMES[0];
+      dispatchSchemeAlertToPhone({
+        phoneNumber: sub.phoneNumber,
+        scheme: targetScheme,
+        alertType: 'tracker_status',
+        language: currentLang,
+        trackerStageLabel: getDisplayStageLabel(nextStatus),
+      }).catch(() => {});
+    }
+  };
+
   const handleAddNewScheme = () => {
     if (!selectedSchemeToAdd || !onAddTrackedScheme) return;
     onAddTrackedScheme(selectedSchemeToAdd);
@@ -75,6 +111,11 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
             </li>
           ))}
         </ul>
+      </div>
+
+      {/* Phone SMS Progress Notification Bar */}
+      <div className="no-print">
+        <PhoneAlertCenter currentLang={currentLang} compact />
       </div>
 
       {/* Top Banner */}
@@ -209,7 +250,19 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {scheme && (
+                      <button
+                        type="button"
+                        onClick={() => printSchemeDocument(scheme, currentLang)}
+                        className="inline-flex items-center gap-1 text-xs text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg border border-emerald-200 font-bold cursor-pointer"
+                        title="Download Sewa Kendra Required Documents & Steps Guide (PDF)"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{currentLang === 'pa' ? 'ਗਾਈਡ ਡਾਊਨਲੋਡ (PDF)' : currentLang === 'hi' ? 'गाइड डाउनलोड (PDF)' : 'Download Guide (PDF)'}</span>
+                      </button>
+                    )}
+
                     {scheme && (
                       <a
                         href={scheme.officialPortalUrl}
@@ -234,7 +287,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                   </div>
                 </div>
 
-                {/* 5-Step Journey Stepper */}
+                {/* 5-Step Journey Stepper (Documents Ready -> Applied -> Approved) */}
                 <div>
                   <div className="grid grid-cols-5 gap-1 sm:gap-2">
                     {statuses.map((status, idx) => {
@@ -245,7 +298,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                         <button
                           key={status}
                           type="button"
-                          onClick={() => onUpdateStatus(item.id, status)}
+                          onClick={() => handleStatusClick(item, status)}
                           className={`p-2 rounded-xl text-center transition-all cursor-pointer border ${
                             isCurrent
                               ? 'bg-blue-700 border-blue-700 text-white font-bold shadow-xs'
@@ -257,16 +310,17 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                           <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5 hidden sm:block">
                             Step {idx + 1}
                           </div>
-                          <div className="text-[10px] sm:text-xs truncate font-medium">
-                            {status}
+                          <div className="text-[10px] sm:text-xs truncate font-bold">
+                            {getDisplayStageLabel(status)}
                           </div>
                         </button>
                       );
                     })}
                   </div>
 
-                  <p className="text-[11px] text-slate-400 mt-1.5 text-right">
-                    Click any step above to update your application progress
+                  <p className="text-[11px] text-slate-500 mt-1.5 flex items-center justify-between flex-wrap gap-1">
+                    <span>✨ Milestones: <strong>Documents Ready → Applied → Approved</strong></span>
+                    <span>Click any step above to update progress &amp; trigger Phone SMS Alert</span>
                   </p>
                 </div>
 
