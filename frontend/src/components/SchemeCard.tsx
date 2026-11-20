@@ -28,7 +28,8 @@ import {
   Calculator,
   Pencil,
   Trash2,
-  Smartphone
+  Smartphone,
+  Scale
 } from 'lucide-react';
 import { printSchemeDocument } from '../utils/printHelper';
 import { loadPhoneAlertSubscription, dispatchSchemeAlertToPhone } from '../utils/phoneAlertService';
@@ -44,6 +45,8 @@ interface SchemeCardProps {
   onOpenAiAdvisor?: (scheme: Scheme) => void;
   isSaved?: boolean;
   onToggleSave?: (scheme: Scheme) => void;
+  isComparing?: boolean;
+  onToggleCompare?: (scheme: Scheme) => void;
   isAdminRole?: boolean;
   onEditScheme?: (scheme: Scheme) => void;
   onDeleteScheme?: (scheme: Scheme) => void;
@@ -60,6 +63,8 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
   onOpenAiAdvisor,
   isSaved = false,
   onToggleSave,
+  isComparing = false,
+  onToggleCompare,
   isAdminRole = false,
   onEditScheme,
   onDeleteScheme
@@ -184,6 +189,44 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                     : `${matchPercentage}% Match`}
                 </span>
               </span>
+            )}
+
+            {onToggleCompare && (
+              <button
+                type="button"
+                data-testid={`compare-scheme-btn-${scheme.id}`}
+                aria-pressed={isComparing}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleCompare(scheme);
+                }}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0 ${
+                  isComparing
+                    ? 'bg-blue-700 text-white border-blue-800 shadow-xs dark:bg-blue-600 dark:text-white dark:border-blue-500'
+                    : 'bg-slate-50 text-slate-700 hover:text-blue-900 border-slate-200 hover:border-blue-300 hover:bg-blue-50 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:border-blue-500'
+                }`}
+                title={
+                  isComparing
+                    ? 'Remove from side-by-side comparison'
+                    : 'Select scheme for side-by-side comparison'
+                }
+                aria-label={isComparing ? `Remove ${title} from comparison` : `Compare ${title}`}
+              >
+                <Scale className="w-3 h-3 shrink-0" />
+                <span>
+                  {isComparing
+                    ? currentLang === 'pa'
+                      ? 'ਤੁਲਨਾ ਵਿੱਚ ✓'
+                      : currentLang === 'hi'
+                        ? 'तुलना में ✓'
+                        : 'Comparing'
+                    : currentLang === 'pa'
+                      ? 'ਤੁਲਨਾ'
+                      : currentLang === 'hi'
+                        ? 'तुलना'
+                        : 'Compare'}
+                </span>
+              </button>
             )}
 
             {onToggleSave && (

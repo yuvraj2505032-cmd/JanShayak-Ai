@@ -25,17 +25,23 @@ import {
 } from './utils/adminSchemeManager';
 
 import {
+  DASHBOARD_SECTOR_CATEGORIES,
   DEFAULT_ADVANCED_FILTERS,
+  countSchemesBySectorCategory,
   filterSchemesAdvanced,
   getTopRecommendedSchemes,
   recordRecentlyViewedScheme,
   type AdvancedSearchFilters,
+  type SchemeSortBy,
 } from './utils/advancedSchemeFilter';
 import { setOfflineRecentlyViewed } from './utils/offlineCache';
 import {
   loadPhoneAlertSubscription,
   dispatchSchemeAlertToPhone,
+  dispatchAiProfileActivitySms,
   syncActiveLoggedInUser,
+  syncProfilePhoneToAlertSubscription,
+  type SentPhoneAlertMessage,
 } from './utils/phoneAlertService';
 
 // Components (eagerly imported so 100% of tabs and modals work offline without network chunk errors)
@@ -64,6 +70,15 @@ import { AiProfileRoadmapModal } from './components/AiProfileRoadmapModal';
 import { AdminConsole } from './components/AdminConsole';
 import { SavedDeadlineBanner } from './components/SavedDeadlineBanner';
 import { PhotoJawabModal } from './components/PhotoJawabModal';
+import { SchemeComparisonModal, SchemeComparisonTray } from './components/SchemeComparisonModal';
+import { toggleSchemeInComparison, MAX_COMPARISON_SCHEMES } from './utils/schemeComparison';
+import { SchemeNotificationToast } from './components/NotificationCenter';
+import {
+  buildSavedSchemeDeadlineNotifications,
+  createStatusChangeNotification,
+  mergeAndSortNotifications,
+  type SchemeNotificationItem,
+} from './utils/schemeNotifications';
 import { OfflineIndicator } from './components/PWAInstallButton';
 import { DEFAULT_OFFICIAL_PORTALS, AI_DISCOVERABLE_SCHEMES_POOL } from './data/officialPortals';
 import { ALL_STATES_SCHEMES_POOL, generateAutonomousAiSchemeBundle, INDIA_STATES_AND_UTS, getDistrictsForState } from './data/indiaStatesAndDistricts';
@@ -105,11 +120,33 @@ import {
   Scan,
   BarChart3,
   CheckCircle2,
-  Camera
+  Camera,
+  Scale,
+  ArrowUpDown,
+  Clock,
+  Flame,
+  IndianRupee,
+  Smartphone,
+  X
 } from 'lucide-react';
+
+const MAX_AI_ADDED_SCHEMES = 64;
+
+function deduplicateAndCapSchemes(schemes: Scheme[], limit: number = MAX_AI_ADDED_SCHEMES): Scheme[] {
+  const seen = new Set<string>();
+  const unique: Scheme[] = [];
+  for (const item of schemes) {
+    if (!item || typeof item.id !== 'string' || seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+    if (unique.length >= limit) break;
+  }
+  return unique;
+}
 
 const DEFAULT_PROFILE: CitizenProfile = {
   username: '',
+  phoneNumber: '9876543210',
   role: 'Citizen',
   age: 20,
   gender: 'Male',
@@ -232,22 +269,42 @@ export default function App() {
     ];
   });
   const [aiAddedSchemes, setAiAddedSchemes] = useState<Scheme[]>(() => {
+    const defaultSeed = deduplicateAndCapSchemes([
+      ...AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.scheme),
+      ...ALL_STATES_SCHEMES_POOL.map((b) => b.scheme),
+    ]);
     try {
       const saved = localStorage.getItem('janshayak_ai_admin_schemes_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return deduplicateAndCapSchemes(parsed, MAX_AI_ADDED_SCHEMES);
+        }
       }
     } catch (e) {
       console.warn('Could not load AI admin schemes:', e);
     }
-    // Automatically seed New (2025-26), Purani (Classic), AND All 36 Indian States/UTs flagship schemes
-    return [
-      ...AI_DISCOVERABLE_SCHEMES_POOL.map((b) => b.scheme),
-      ...ALL_STATES_SCHEMES_POOL.map((b) => b.scheme),
-    ];
+    return defaultSeed;
   });
   const [isAiAutoSyncEnabled, setIsAiAutoSyncEnabled] = useState<boolean>(true);
+  const [liveAiSmsToast, setLiveAiSmsToast] = useState<SentPhoneAlertMessage | null>(null);
+
+  useEffect(() => {
+    const handleSmsDispatched = (ev: Event) => {
+      const customEv = ev as CustomEvent<SentPhoneAlertMessage>;
+      if (customEv.detail) {
+        setLiveAiSmsToast(customEv.detail);
+      }
+    };
+    window.addEventListener('janshayak:phone-alert-sent', handleSmsDispatched);
+    return () => window.removeEventListener('janshayak:phone-alert-sent', handleSmsDispatched);
+  }, []);
+
+  useEffect(() => {
+    if (!liveAiSmsToast) return;
+    const timer = window.setTimeout(() => setLiveAiSmsToast(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [liveAiSmsToast]);
   const [isAiDiscovering, setIsAiDiscovering] = useState<boolean>(false);
   const [aiAdminLogs, setAiAdminLogs] = useState<AiAdminLogEntry[]>(() =>
     AI_DISCOVERABLE_SCHEMES_POOL.slice(0, 6).map((bundle, idx) => ({
@@ -730,7 +787,7 @@ export default function App() {
       if (chosenScheme && chosenPortal) {
         const schemeToAdd = chosenScheme;
         const portalToAdd = chosenPortal;
-        setAiAddedSchemes(prev => [schemeToAdd, ...prev.filter(s => s.id !== schemeToAdd.id)]);
+        setAiAddedSchemes(prev => deduplicateAndCapSchemes([schemeToAdd, ...prev.filter(s => s.id !== schemeToAdd.id)], MAX_AI_ADDED_SCHEMES));
         setManagedSites(prev => [portalToAdd, ...prev.filter(p => p.id !== portalToAdd.id)]);
         setAiAdminLogs(prev => [
           {
@@ -741,14 +798,24 @@ export default function App() {
             portalUrl: portalToAdd.url,
             mode
           },
-          ...prev
+          ...prev.slice(0, 29)
         ]);
 
-        // 1-Time New Scheme SMS Alert: ONLY when a new scheme arrives AND user is logged into our website (strictly 1 message limit)
+        // 1-Time New Scheme SMS Alert & Profile AI Auto-SMS Notification
         const loggedUserId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
         const loggedUserEmail = authUser?.email ?? localAccount?.email ?? null;
         const activeSub = loadPhoneAlertSubscription();
-        if (loggedUserId && activeSub.enabled && activeSub.phoneNumber) {
+        const targetPhone = profile.phoneNumber || activeSub.phoneNumber;
+
+        if (mode === 'AI On-Demand' && targetPhone) {
+          void dispatchAiProfileActivitySms({
+            phoneNumber: targetPhone,
+            activityType: 'new_scheme',
+            language: currentLang,
+            scheme: schemeToAdd,
+            triggeredBy: 'AI Autonomous Engine',
+          });
+        } else if (loggedUserId && activeSub.enabled && activeSub.phoneNumber) {
           void dispatchSchemeAlertToPhone({
             phoneNumber: activeSub.phoneNumber,
             scheme: schemeToAdd,
@@ -815,9 +882,9 @@ export default function App() {
     ]);
   };
 
-  // Continuous autonomous AI Admin background sync (discovers & adds new State/Central schemes automatically over time in both Online & Offline modes)
+  // Continuous autonomous AI Admin background sync (capped at MAX_AI_ADDED_SCHEMES so total scheme count remains stable)
   useEffect(() => {
-    if (!isAiAutoSyncEnabled) return;
+    if (!isAiAutoSyncEnabled || aiAddedSchemes.length >= MAX_AI_ADDED_SCHEMES) return;
     const interval = window.setInterval(() => {
       void handleTriggerAiDiscovery(undefined, 'Auto-Scheduled');
     }, 12000);
@@ -958,6 +1025,20 @@ export default function App() {
       throw new Error('Could not save the profile on this device. Check available storage and try again.');
     }
 
+    const loggedEmail = authUser?.email ?? localAccount?.email ?? null;
+    syncProfilePhoneToAlertSubscription(profile.phoneNumber, currentLang, ownerId, loggedEmail);
+    if (profile.phoneNumber) {
+      void dispatchAiProfileActivitySms({
+        phoneNumber: profile.phoneNumber,
+        activityType: 'profile_saved',
+        language: currentLang,
+        workSummaryEn: `Your Citizen Profile (${profile.occupation}, ${profile.district}, ${profile.state || 'Punjab'}) has been saved. AI matched your eligibility across government welfare schemes.`,
+        workSummaryPa: `ਤੁਹਾਡੀ ਪ੍ਰੋਫ਼ਾਈਲ (${profile.occupation}, ${profile.district}) ਸੇਵ ਹੋ ਗਈ ਹੈ ਅਤੇ AI ਨੇ ਤੁਹਾਡੀਆਂ ਯੋਗ ਸਰਕਾਰੀ ਸਕੀਮਾਂ ਅਪਡੇਟ ਕਰ ਦਿੱਤੀਆਂ ਹਨ।`,
+        workSummaryHi: `आपकी प्रोफ़ाइल (${profile.occupation}, ${profile.district}) सेव हो गई है और AI ने आपकी पात्र सरकारी योजनाएं अपडेट कर दी हैं।`,
+        triggeredBy: 'AI Autonomous Engine',
+      });
+    }
+
     if (authUser) {
       if (!supabase) throw new Error(supabaseConfigurationError || 'Supabase is not configured.');
       setCloudSyncStatus('Saving your profile to Supabase…');
@@ -995,6 +1076,7 @@ export default function App() {
   };
 
   const handleToggleSave = (scheme: Scheme) => {
+    const isAdding = !savedSchemeIds.has(scheme.id);
     setSavedSchemeIds(prev => {
       const next = new Set(prev);
       if (next.has(scheme.id)) {
@@ -1004,10 +1086,60 @@ export default function App() {
       }
       return next;
     });
+    if (isAdding) {
+      const upcomingForScheme = buildSavedSchemeDeadlineNotifications([scheme], [scheme.id]);
+      if (upcomingForScheme.length > 0) {
+        setActiveNotificationToast(upcomingForScheme[0]);
+      }
+    }
+    const targetPhone = profile.phoneNumber || loadPhoneAlertSubscription().phoneNumber;
+    if (isAdding && targetPhone) {
+      void dispatchAiProfileActivitySms({
+        phoneNumber: targetPhone,
+        activityType: 'scheme_saved',
+        language: currentLang,
+        scheme,
+        workSummaryEn: `Scheme "${scheme.titleEn}" (${scheme.benefitAmountText}) has been saved to your Personal Scheme Vault.`,
+        workSummaryPa: `ਸਕੀਮ "${scheme.titlePa || scheme.titleEn}" (${scheme.benefitAmountText}) ਤੁਹਾਡੀ ਸੇਵਡ ਸਕੀਮਾਂ ਦੀ ਸੂਚੀ ਵਿੱਚ ਜੁੜ ਗਈ ਹੈ।`,
+        workSummaryHi: `योजना "${scheme.titleHi || scheme.titleEn}" (${scheme.benefitAmountText}) आपकी सेव्ड योजनाओं की सूची में जुड़ गई है।`,
+      });
+    }
   };
 
   const handleClearSaved = () => {
     setSavedSchemeIds(new Set());
+  };
+
+  // Multi-Scheme Side-by-Side Comparison State & Handlers
+  const [comparedSchemeIds, setComparedSchemeIds] = useState<string[]>([]);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false);
+  const [compareLimitNotice, setCompareLimitNotice] = useState<string | null>(null);
+
+  const handleToggleCompareScheme = (scheme: Scheme) => {
+    const result = toggleSchemeInComparison(comparedSchemeIds, scheme.id, MAX_COMPARISON_SCHEMES);
+    if (result.limitReached) {
+      setCompareLimitNotice(
+        currentLang === 'pa'
+          ? `ਤੁਸੀਂ ਇੱਕੋ ਸਮੇਂ ਵੱਧ ਤੋਂ ਵੱਧ ${MAX_COMPARISON_SCHEMES} ਸਕੀਮਾਂ ਦੀ ਤੁਲਨਾ ਕਰ ਸਕਦੇ ਹੋ।`
+          : currentLang === 'hi'
+            ? `आप एक बार में अधिकतम ${MAX_COMPARISON_SCHEMES} योजनाओं की तुलना कर सकते हैं।`
+            : `You can compare up to ${MAX_COMPARISON_SCHEMES} schemes side-by-side at once.`
+      );
+      window.setTimeout(() => setCompareLimitNotice(null), 4000);
+      return;
+    }
+    setCompareLimitNotice(null);
+    setComparedSchemeIds(result.nextIds);
+  };
+
+  const handleRemoveComparedScheme = (schemeId: string) => {
+    setComparedSchemeIds(prev => prev.filter(id => id !== schemeId));
+  };
+
+  const handleClearComparedSchemes = () => {
+    setComparedSchemeIds([]);
+    setIsCompareModalOpen(false);
+    setCompareLimitNotice(null);
   };
 
   const [locationDraft, setLocationDraft] = useState<string>(() => profile.customLocation || '');
@@ -1120,11 +1252,20 @@ export default function App() {
     const { nextState, createdScheme } = addAdminScheme(adminKnowledgeState, input, 'Admin');
     setAdminKnowledgeState(nextState);
 
-    // When a new scheme arrives on the website, send 1-time SMS alert ONLY if the user is logged into our website
+    // Automatically send AI SMS to user's profile phone number when Admin adds a new scheme
     const loggedUserId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
     const loggedUserEmail = authUser?.email ?? localAccount?.email ?? null;
     const activeSub = loadPhoneAlertSubscription();
-    if (loggedUserId && activeSub.enabled && activeSub.phoneNumber) {
+    const targetPhone = profile.phoneNumber || activeSub.phoneNumber;
+    if (targetPhone) {
+      void dispatchAiProfileActivitySms({
+        phoneNumber: targetPhone,
+        activityType: 'new_scheme',
+        language: currentLang,
+        scheme: createdScheme,
+        triggeredBy: 'Admin Broadcast',
+      });
+    } else if (loggedUserId && activeSub.enabled && activeSub.phoneNumber) {
       void dispatchSchemeAlertToPhone({
         phoneNumber: activeSub.phoneNumber,
         scheme: createdScheme,
@@ -1217,6 +1358,40 @@ export default function App() {
     .map(id => allSchemes.find(s => s.id === id))
     .filter((s): s is Scheme => Boolean(s));
 
+  const sectorCategoryCounts = React.useMemo(
+    () => countSchemesBySectorCategory(allSchemes, Array.from(savedSchemeIds)),
+    [allSchemes, savedSchemeIds]
+  );
+
+  const comparedSchemes = React.useMemo(
+    () =>
+      comparedSchemeIds
+        .map(id => allSchemes.find(s => s.id === id))
+        .filter((s): s is Scheme => Boolean(s)),
+    [comparedSchemeIds, allSchemes]
+  );
+
+  const handleSelectSectorCategory = (category: string) => {
+    setActiveCategoryFilter(category);
+    setAdvancedFilters(prev => ({
+      ...prev,
+      category,
+      occupation: 'All',
+      targetGroup: 'all',
+    }));
+    if (category === 'Students' || category === 'Education') {
+      handleQuickOccupationSelect('Student');
+    } else if (category === 'Farmers' || category === 'Agriculture') {
+      handleQuickOccupationSelect('Farmer');
+    } else if (category === 'Women') {
+      handleQuickOccupationSelect('Women');
+    } else if (category === 'Seniors') {
+      handleQuickOccupationSelect('Senior Citizen');
+    } else if (category === 'Business Owners') {
+      handleQuickOccupationSelect('Self-Employed');
+    }
+  };
+
   const handleUpdateAdvancedFilters = (patch: Partial<AdvancedSearchFilters>) => {
     if (typeof patch.query === 'string') {
       setSearchQuery(patch.query);
@@ -1236,6 +1411,127 @@ export default function App() {
     setAdvancedFilters(DEFAULT_ADVANCED_FILTERS);
   };
 
+  // Saved Scheme Deadline & Status-Change Notification System State
+  const [statusChangeNotifications, setStatusChangeNotifications] = useState<SchemeNotificationItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('janshayak_status_notifications_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    const pmKisanScheme = GOV_SCHEMES.find((s) => s.id === 'pm-kisan');
+    return [
+      createStatusChangeNotification({
+        id: 'notif-status-initial-pm-kisan',
+        schemeId: 'pm-kisan',
+        schemeTitleEn: pmKisanScheme?.titleEn || 'PM-Kisan Samman Nidhi Yojana',
+        schemeTitlePa: pmKisanScheme?.titlePa,
+        schemeTitleHi: pmKisanScheme?.titleHi,
+        benefitAmountText: pmKisanScheme?.benefitAmountText || '₹6,000 / year',
+        previousStatus: 'Discovered',
+        newStatus: 'Documents Assembled',
+        createdAt: 'Just now',
+      }),
+    ];
+  });
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('janshayak_read_notifications_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {
+      // ignore
+    }
+    return new Set();
+  });
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('janshayak_dismissed_notifications_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {
+      // ignore
+    }
+    return new Set();
+  });
+  const [activeNotificationToast, setActiveNotificationToast] = useState<SchemeNotificationItem | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('janshayak_status_notifications_v1', JSON.stringify(statusChangeNotifications.slice(0, 20)));
+    } catch {
+      // ignore
+    }
+  }, [statusChangeNotifications]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('janshayak_read_notifications_v1', JSON.stringify(Array.from(readNotificationIds)));
+    } catch {
+      // ignore
+    }
+  }, [readNotificationIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('janshayak_dismissed_notifications_v1', JSON.stringify(Array.from(dismissedNotificationIds)));
+    } catch {
+      // ignore
+    }
+  }, [dismissedNotificationIds]);
+
+  useEffect(() => {
+    if (!activeNotificationToast) return;
+    const timer = window.setTimeout(() => setActiveNotificationToast(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [activeNotificationToast]);
+
+  const deadlineNotifications = React.useMemo(
+    () => buildSavedSchemeDeadlineNotifications(allSchemes, savedSchemeIds),
+    [allSchemes, savedSchemeIds]
+  );
+
+  const allNotifications = React.useMemo(
+    () =>
+      mergeAndSortNotifications(
+        deadlineNotifications,
+        statusChangeNotifications,
+        readNotificationIds,
+        dismissedNotificationIds
+      ),
+    [deadlineNotifications, statusChangeNotifications, readNotificationIds, dismissedNotificationIds]
+  );
+
+  const handleMarkNotificationRead = (id: string) => {
+    setReadNotificationIds((prev) => new Set(prev).add(id));
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    setReadNotificationIds((prev) => {
+      const next = new Set(prev);
+      allNotifications.forEach((n) => next.add(n.id));
+      return next;
+    });
+  };
+
+  const handleDismissNotification = (id: string) => {
+    setDismissedNotificationIds((prev) => new Set(prev).add(id));
+  };
+
+  const handleOpenSchemeById = (schemeId: string) => {
+    const found = allSchemes.find((s) => s.id === schemeId);
+    if (found) {
+      handleOpenSchemeDetails(found, 'overview');
+    }
+  };
+
   const handleTrackScheme = (scheme: Scheme) => {
     const existing = trackedItems.find(item => item.schemeId === scheme.id);
     if (!existing) {
@@ -1247,6 +1543,30 @@ export default function App() {
         status: 'Discovered'
       };
       setTrackedItems(prev => [newItem, ...prev]);
+
+      const statusNotif = createStatusChangeNotification({
+        schemeId: scheme.id,
+        schemeTitleEn: scheme.titleEn,
+        schemeTitlePa: scheme.titlePa,
+        schemeTitleHi: scheme.titleHi,
+        benefitAmountText: scheme.benefitAmountText,
+        newStatus: 'Discovered',
+      });
+      setStatusChangeNotifications((prev) => [statusNotif, ...prev.slice(0, 19)]);
+      setActiveNotificationToast(statusNotif);
+
+      const targetPhone = profile.phoneNumber || loadPhoneAlertSubscription().phoneNumber;
+      if (targetPhone) {
+        void dispatchAiProfileActivitySms({
+          phoneNumber: targetPhone,
+          activityType: 'tracker_updated',
+          language: currentLang,
+          scheme,
+          workSummaryEn: `Application tracking started for "${scheme.titleEn}" (Status: Discovered).`,
+          workSummaryPa: `"${scheme.titlePa || scheme.titleEn}" ਲਈ ਅਰਜ਼ੀ ਟ੍ਰੈਕਰ ਸ਼ੁਰੂ ਹੋ ਗਿਆ ਹੈ।`,
+          workSummaryHi: `"${scheme.titleHi || scheme.titleEn}" के लिए आवेदन ट्रैकर शुरू हो गया है।`,
+        });
+      }
     }
   };
 
@@ -1258,7 +1578,57 @@ export default function App() {
   };
 
   const handleUpdateStatus = (id: string, status: ApplicationTrackerItem['status']) => {
+    const targetItem = trackedItems.find(item => item.id === id);
     setTrackedItems(prev => prev.map(item => item.id === id ? { ...item, status } : item));
+    if (targetItem && targetItem.status !== status) {
+      const matchedScheme = allSchemes.find(s => s.id === targetItem.schemeId);
+      const statusNotif = createStatusChangeNotification({
+        schemeId: targetItem.schemeId,
+        schemeTitleEn: matchedScheme?.titleEn || targetItem.schemeTitle,
+        schemeTitlePa: matchedScheme?.titlePa,
+        schemeTitleHi: matchedScheme?.titleHi,
+        benefitAmountText: matchedScheme?.benefitAmountText,
+        previousStatus: targetItem.status,
+        newStatus: status,
+      });
+      setStatusChangeNotifications((prev) => [statusNotif, ...prev.slice(0, 19)]);
+      setActiveNotificationToast(statusNotif);
+    }
+    const targetPhone = profile.phoneNumber || loadPhoneAlertSubscription().phoneNumber;
+    if (targetItem && targetPhone) {
+      const matchedScheme = allSchemes.find(s => s.id === targetItem.schemeId);
+      void dispatchAiProfileActivitySms({
+        phoneNumber: targetPhone,
+        activityType: 'tracker_updated',
+        language: currentLang,
+        scheme: matchedScheme,
+        workSummaryEn: `Application status for "${targetItem.schemeTitle}" updated to "${status}".`,
+        workSummaryPa: `"${targetItem.schemeTitle}" ਦੀ ਅਰਜ਼ੀ ਸਥਿਤੀ "${status}" ਵਜੋਂ ਅਪਡੇਟ ਹੋ ਗਈ ਹੈ।`,
+        workSummaryHi: `"${targetItem.schemeTitle}" की आवेदन स्थिति "${status}" पर अपडेट हो गई है।`,
+      });
+    }
+  };
+
+  const handleAdvanceSavedSchemeStatus = () => {
+    const stageOrder: ApplicationTrackerItem['status'][] = [
+      'Discovered',
+      'Documents Assembled',
+      'Form Submitted',
+      'Approved',
+      'Disbursed',
+    ];
+    if (trackedItems.length > 0) {
+      const firstItem = trackedItems[0];
+      const currentIdx = stageOrder.indexOf(firstItem.status);
+      const nextStatus = stageOrder[(currentIdx + 1) % stageOrder.length];
+      handleUpdateStatus(firstItem.id, nextStatus);
+      return;
+    }
+    const firstSavedId = Array.from(savedSchemeIds)[0] || 'pm-kisan';
+    const scheme = allSchemes.find((s) => s.id === firstSavedId) || GOV_SCHEMES[0];
+    if (scheme) {
+      handleTrackScheme(scheme);
+    }
   };
 
   const handleUpdateRefNumber = (id: string, refNumber: string) => {
@@ -1350,6 +1720,12 @@ export default function App() {
         savedCount={savedSchemeIds.size}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        notifications={allNotifications}
+        onMarkNotificationRead={handleMarkNotificationRead}
+        onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+        onDismissNotification={handleDismissNotification}
+        onOpenSchemeById={handleOpenSchemeById}
+        onTriggerDemoStatusAdvance={handleAdvanceSavedSchemeStatus}
         cloudAccount={{
           configured: Boolean(supabase),
           configurationError: supabaseConfigurationError,
@@ -1380,20 +1756,7 @@ export default function App() {
           onStartWizard={() => setActiveTab('wizard')}
           onOpenFamilyFinder={() => setActiveTab('family')}
           activeFilter={activeCategoryFilter}
-          onFilterChange={(filter) => {
-            setActiveCategoryFilter(filter);
-            if (filter === 'Students') {
-              handleQuickOccupationSelect('Student');
-            } else if (filter === 'Farmers') {
-              handleQuickOccupationSelect('Farmer');
-            } else if (filter === 'Women') {
-              handleQuickOccupationSelect('Women');
-            } else if (filter === 'Seniors') {
-              handleQuickOccupationSelect('Senior Citizen');
-            } else if (filter === 'Business Owners') {
-              handleQuickOccupationSelect('Self-Employed');
-            }
-          }}
+          onFilterChange={handleSelectSectorCategory}
           onAskAI={() => {
             setAssistantInitialQuestion(searchQuery.trim());
             setIsVoiceAssistantOpen(true);
@@ -1419,6 +1782,8 @@ export default function App() {
               onToggleSave={handleToggleSave}
               onOpenDeadlineHub={() => setActiveTab('deadlines')}
               onFilterSavedSchemes={() => setActiveTab('saved')}
+              profilePhoneNumber={profile.phoneNumber || loadPhoneAlertSubscription().phoneNumber}
+              onOpenProfile={() => setActiveTab('profile')}
             />
             <SmartDashboardHub
               currentLang={currentLang}
@@ -1446,6 +1811,7 @@ export default function App() {
               isAiAutoSyncEnabled={isAiAutoSyncEnabled}
               onToggleAiAutoSync={setIsAiAutoSyncEnabled}
               latestAutoAddedTitle={aiAdminLogs[0]?.schemeTitle}
+              isAdminRole={Boolean(adminSessionToken)}
             />
             {/* Active Occupation + Dynamic Eligibility Criteria + Custom Location Selector Bar */}
             {(() => {
@@ -1826,79 +2192,256 @@ export default function App() {
               </div>
             </section>
 
-            {/* Scheme Cards Grid */}
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-                  {advancedFilters.savedOnly ? 'Saved government schemes' : 'Explore government schemes'}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {advancedFilters.savedOnly
-                    ? `Showing only schemes bookmarked by you (${savedSchemeIds.size} saved).`
-                    : `Discover benefits and support matched to your needs (${profile.occupation} profile active).`}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Dedicated Single-Button Toggle for Saved Schemes vs All Schemes */}
-                <button
-                  type="button"
-                  data-testid="dashboard-saved-filter-toggle"
-                  aria-pressed={Boolean(advancedFilters.savedOnly)}
-                  onClick={() => handleUpdateAdvancedFilters({ savedOnly: !advancedFilters.savedOnly })}
-                  className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition border cursor-pointer shadow-xs ${
-                    advancedFilters.savedOnly
-                      ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-200'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-300'
-                  }`}
-                >
-                  <Bookmark className={`w-3.5 h-3.5 ${advancedFilters.savedOnly ? 'fill-white text-white' : 'text-amber-600'}`} />
-                  <span>{advancedFilters.savedOnly ? 'Viewing Saved Schemes Only' : 'Show Saved Schemes Only'}</span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[11px] font-extrabold ${
-                      advancedFilters.savedOnly ? 'bg-amber-700/60 text-white' : 'bg-amber-100 text-amber-900'
-                    }`}
-                  >
-                    {savedSchemeIds.size}
-                  </span>
-                </button>
-
-                {/* Explicit All Schemes / Saved Only Segmented Switch */}
-                <div
-                  className="inline-flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200/80"
-                  role="group"
-                  aria-label="Filter between all schemes and saved schemes"
-                >
-                  <button
-                    type="button"
-                    data-testid="dashboard-filter-all-schemes-btn"
-                    onClick={() => handleUpdateAdvancedFilters({ savedOnly: false })}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
-                      !advancedFilters.savedOnly
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    All ({allSchemes.length})
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="dashboard-filter-saved-schemes-btn"
-                    onClick={() => handleUpdateAdvancedFilters({ savedOnly: true })}
-                    className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
-                      advancedFilters.savedOnly
-                        ? 'bg-amber-500 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Bookmark className={`w-3 h-3 ${advancedFilters.savedOnly ? 'fill-white text-white' : 'text-amber-600'}`} />
-                    Saved ({savedSchemeIds.size})
-                  </button>
+            {/* Scheme Cards Grid & Sector Category Filter Bar */}
+            <div className="space-y-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
+                    {advancedFilters.savedOnly
+                      ? 'Saved government schemes'
+                      : activeCategoryFilter !== 'all'
+                        ? `Explore ${activeCategoryFilter} schemes`
+                        : 'Explore government schemes'}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    {advancedFilters.savedOnly
+                      ? `Showing only schemes bookmarked by you (${savedSchemeIds.size} saved).`
+                      : activeCategoryFilter !== 'all'
+                        ? (DASHBOARD_SECTOR_CATEGORIES.find((c) => c.id === activeCategoryFilter)?.[
+                            currentLang === 'pa'
+                              ? 'descriptionPa'
+                              : currentLang === 'hi'
+                                ? 'descriptionHi'
+                                : 'descriptionEn'
+                          ] ?? `Segmented by ${activeCategoryFilter} sector (${filteredSchemes.length} schemes).`)
+                        : `Discover benefits and support matched to your needs (${profile.occupation} profile active).`}
+                  </p>
                 </div>
 
-                <span className="text-sm font-medium text-slate-500">
-                  {filteredSchemes.length} {filteredSchemes.length === 1 ? 'scheme' : 'schemes'}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Dedicated Single-Button Toggle for Saved Schemes vs All Schemes */}
+                  <button
+                    type="button"
+                    data-testid="dashboard-saved-filter-toggle"
+                    aria-pressed={Boolean(advancedFilters.savedOnly)}
+                    onClick={() => handleUpdateAdvancedFilters({ savedOnly: !advancedFilters.savedOnly })}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition border cursor-pointer shadow-xs whitespace-nowrap shrink-0 ${
+                      advancedFilters.savedOnly
+                        ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-200'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <Bookmark className={`w-3.5 h-3.5 ${advancedFilters.savedOnly ? 'fill-white text-white' : 'text-amber-600'}`} />
+                    <span>{advancedFilters.savedOnly ? 'Viewing Saved Schemes Only' : 'Show Saved Schemes Only'}</span>
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums ${
+                        advancedFilters.savedOnly ? 'bg-amber-700/60 text-white' : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {savedSchemeIds.size}
+                    </span>
+                  </button>
+
+                  {/* Explicit All Schemes / Saved Only Segmented Switch */}
+                  <div
+                    className="inline-flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800"
+                    role="group"
+                    aria-label="Filter between all schemes and saved schemes"
+                  >
+                    <button
+                      type="button"
+                      data-testid="dashboard-filter-all-schemes-btn"
+                      onClick={() => handleUpdateAdvancedFilters({ savedOnly: false })}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 tabular-nums ${
+                        !advancedFilters.savedOnly
+                          ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
+                      }`}
+                    >
+                      All ({allSchemes.length})
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="dashboard-filter-saved-schemes-btn"
+                      onClick={() => handleUpdateAdvancedFilters({ savedOnly: true })}
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 tabular-nums ${
+                        advancedFilters.savedOnly
+                          ? 'bg-amber-500 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
+                      }`}
+                    >
+                      <Bookmark className={`w-3 h-3 ${advancedFilters.savedOnly ? 'fill-white text-white' : 'text-amber-600'}`} />
+                      Saved ({savedSchemeIds.size})
+                    </button>
+                  </div>
+
+                  {/* Scheme Directory Sorting Toggle (Newest, Popularity, Benefit Amount) */}
+                  <div
+                    data-testid="scheme-directory-sort-group"
+                    role="group"
+                    aria-label="Sort schemes by Newest, Popularity, or Benefit Amount"
+                    className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800"
+                  >
+                    <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      <ArrowUpDown className="w-3 h-3" />
+                      <span>{currentLang === 'pa' ? 'ਕ੍ਰਮ:' : currentLang === 'hi' ? 'क्रम:' : 'Sort:'}</span>
+                    </span>
+                    {(
+                      [
+                        {
+                          id: 'newest' as SchemeSortBy,
+                          labelEn: 'Newest',
+                          labelPa: 'ਨਵੀਂਆਂ (Newest)',
+                          labelHi: 'नवीनतम (Newest)',
+                          icon: Clock,
+                        },
+                        {
+                          id: 'popularity' as SchemeSortBy,
+                          labelEn: 'Popularity',
+                          labelPa: 'ਪ੍ਰਸਿੱਧ (Popularity)',
+                          labelHi: 'लोकप्रियता (Popularity)',
+                          icon: Flame,
+                        },
+                        {
+                          id: 'benefit_amount' as SchemeSortBy,
+                          labelEn: 'Benefit Amount',
+                          labelPa: 'ਲਾਭ ਰਾਸ਼ੀ (Benefit Amount)',
+                          labelHi: 'लाभ राशि (Benefit Amount)',
+                          icon: IndianRupee,
+                        },
+                      ] as const
+                    ).map((opt) => {
+                      const activeSort = advancedFilters.sortBy ?? 'relevance';
+                      const isSelected = activeSort === opt.id;
+                      const IconComp = opt.icon;
+                      const label =
+                        currentLang === 'pa'
+                          ? opt.labelPa
+                          : currentLang === 'hi'
+                            ? opt.labelHi
+                            : opt.labelEn;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          data-testid={`sort-schemes-${opt.id}`}
+                          aria-pressed={isSelected}
+                          onClick={() =>
+                            handleUpdateAdvancedFilters({
+                              sortBy: isSelected ? 'relevance' : opt.id,
+                            })
+                          }
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                            isSelected
+                              ? 'bg-blue-700 text-white shadow-xs dark:bg-blue-600'
+                              : 'text-slate-700 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <IconComp className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
+                          <span>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {comparedSchemes.length > 0 && (
+                    <button
+                      type="button"
+                      data-testid="dashboard-toolbar-compare-btn"
+                      onClick={() => setIsCompareModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-extrabold text-white shadow-xs cursor-pointer whitespace-nowrap shrink-0 tabular-nums"
+                    >
+                      <Scale className="w-3.5 h-3.5" />
+                      <span>
+                        {currentLang === 'pa'
+                          ? `ਤੁਲਨਾ ਕਰੋ (${comparedSchemes.length})`
+                          : currentLang === 'hi'
+                            ? `तुलना करें (${comparedSchemes.length})`
+                            : `Compare (${comparedSchemes.length})`}
+                      </span>
+                    </button>
+                  )}
+
+                  <span
+                    data-testid="dashboard-filtered-scheme-count"
+                    className="text-sm font-medium text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap shrink-0"
+                  >
+                    {filteredSchemes.length} {filteredSchemes.length === 1 ? 'scheme' : 'schemes'}
+                  </span>
+                </div>
+              </div>
+
+              {compareLimitNotice && (
+                <div
+                  data-testid="scheme-compare-limit-notice"
+                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200"
+                >
+                  {compareLimitNotice}
+                </div>
+              )}
+
+              {/* Dedicated Dashboard Sector Category Filter Bar (Agriculture, Education, Women, Seniors, Health, Finance, Business & Jobs) */}
+              <div
+                data-testid="dashboard-sector-category-filter"
+                role="group"
+                aria-label="Filter schemes by sector category"
+                className="flex items-center gap-2 overflow-x-auto no-scrollbar rounded-2xl border border-slate-200/90 bg-slate-50/80 p-2.5 sm:flex-wrap dark:border-slate-800 dark:bg-slate-900/80"
+              >
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap shrink-0 px-1.5">
+                  {currentLang === 'pa' ? 'ਸੈਕਟਰ ਫਿਲਟਰ:' : currentLang === 'hi' ? 'सेक्टर फ़िल्टर:' : 'Sector Filter:'}
                 </span>
+                {DASHBOARD_SECTOR_CATEGORIES.map((sector) => {
+                  const isSelected =
+                    activeCategoryFilter === sector.id ||
+                    (sector.id === 'Agriculture' && activeCategoryFilter === 'Farmers') ||
+                    (sector.id === 'Education' && activeCategoryFilter === 'Students');
+                  const label =
+                    currentLang === 'pa'
+                      ? sector.labelPa
+                      : currentLang === 'hi'
+                        ? sector.labelHi
+                        : sector.labelEn;
+                  const sectorCount = sectorCategoryCounts[sector.id] ?? 0;
+                  const testIdSlug = sector.id.toLowerCase().replace(/\s+/g, '-');
+
+                  return (
+                    <button
+                      key={sector.id}
+                      type="button"
+                      data-testid={`dashboard-category-btn-${testIdSlug}`}
+                      aria-pressed={isSelected}
+                      onClick={() => handleSelectSectorCategory(sector.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold border cursor-pointer whitespace-nowrap shrink-0 ${
+                        isSelected
+                          ? 'bg-blue-700 text-white border-blue-800 shadow-xs dark:bg-blue-600 dark:text-white dark:border-blue-500'
+                          : 'bg-white text-slate-800 border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/70 hover:text-blue-950 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 dark:hover:border-blue-500'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      <span
+                        className={`rounded-md px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums ${
+                          isSelected
+                            ? 'bg-blue-950/40 text-white'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        {sectorCount}
+                      </span>
+                    </button>
+                  );
+                })}
+                {activeCategoryFilter !== 'all' && (
+                  <button
+                    type="button"
+                    data-testid="dashboard-clear-category-filter-btn"
+                    onClick={() => handleSelectSectorCategory('all')}
+                    className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <span>
+                      {currentLang === 'pa' ? 'ਸਾਰੇ ਸੈਕਟਰ ਦਿਖਾਓ' : currentLang === 'hi' ? 'सभी सेक्टर दिखाएं' : 'Reset Sector'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1917,6 +2460,8 @@ export default function App() {
                     onOpenScanner={(s) => handleOpenScanner(s)}
                     isSaved={savedSchemeIds.has(scheme.id)}
                     onToggleSave={handleToggleSave}
+                    isComparing={comparedSchemeIds.includes(scheme.id)}
+                    onToggleCompare={handleToggleCompareScheme}
                     isAdminRole={Boolean(adminSessionToken)}
                     onEditScheme={adminSessionToken ? handleEditSchemeFromCard : undefined}
                     onDeleteScheme={adminSessionToken ? (s) => handleDeleteAdminScheme(s.id) : undefined}
@@ -2107,6 +2652,8 @@ export default function App() {
                       onOpenScanner={(s) => handleOpenScanner(s)}
                       isSaved={savedSchemeIds.has(evalItem.scheme.id)}
                       onToggleSave={handleToggleSave}
+                      isComparing={comparedSchemeIds.includes(evalItem.scheme.id)}
+                      onToggleCompare={handleToggleCompareScheme}
                       isAdminRole={Boolean(adminSessionToken)}
                       onEditScheme={adminSessionToken ? handleEditSchemeFromCard : undefined}
                       onDeleteScheme={adminSessionToken ? (s) => handleDeleteAdminScheme(s.id) : undefined}
@@ -2208,6 +2755,8 @@ export default function App() {
                     onOpenScanner={(s) => handleOpenScanner(s)}
                     isSaved={true}
                     onToggleSave={handleToggleSave}
+                    isComparing={comparedSchemeIds.includes(scheme.id)}
+                    onToggleCompare={handleToggleCompareScheme}
                     isAdminRole={Boolean(adminSessionToken)}
                     onEditScheme={adminSessionToken ? handleEditSchemeFromCard : undefined}
                     onDeleteScheme={adminSessionToken ? (s) => handleDeleteAdminScheme(s.id) : undefined}
@@ -2424,6 +2973,84 @@ export default function App() {
           onOpenChatWithQuestion={(q) => {
             setAssistantInitialQuestion(q);
             setIsVoiceAssistantOpen(true);
+          }}
+        />
+      )}
+
+      {/* Live Saved Scheme Deadline & Status-Change Alert Toast */}
+      <SchemeNotificationToast
+        notification={activeNotificationToast}
+        currentLang={currentLang}
+        onClose={() => setActiveNotificationToast(null)}
+        onOpenSchemeById={handleOpenSchemeById}
+        onNavigateTab={setActiveTab}
+      />
+
+      {/* Live AI Auto-SMS Notification Toast (When New Scheme Arrives or User Completes Work on Website) */}
+      {liveAiSmsToast && (
+        <div
+          data-testid="ai-auto-sms-toast"
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 sm:bottom-24 right-4 sm:right-7 z-50 max-w-md w-[calc(100vw-2rem)] rounded-2xl bg-slate-950/95 text-white border border-emerald-500/60 p-4 shadow-2xl backdrop-blur-md"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+                <Smartphone className="w-5 h-5 text-emerald-300" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-extrabold text-emerald-200">
+                    AI Auto-SMS Sent to {liveAiSmsToast.formattedPhone || `+91 ${liveAiSmsToast.phoneNumber}`}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold">
+                    {liveAiSmsToast.sentAt}
+                  </span>
+                </div>
+                <p className="text-xs font-extrabold text-white mt-1 truncate">
+                  {liveAiSmsToast.schemeTitle}
+                </p>
+                <p className="text-[11px] text-emerald-100/90 mt-1 line-clamp-3 whitespace-pre-line leading-relaxed">
+                  {liveAiSmsToast.smsBody}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="close-ai-sms-toast-btn"
+              onClick={() => setLiveAiSmsToast(null)}
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer shrink-0"
+              aria-label="Close SMS notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Multi-Scheme Comparison Tray */}
+      <SchemeComparisonTray
+        selectedSchemes={comparedSchemes}
+        currentLang={currentLang}
+        limitNotice={compareLimitNotice}
+        onOpenModal={() => setIsCompareModalOpen(true)}
+        onRemoveScheme={handleRemoveComparedScheme}
+        onClearAll={handleClearComparedSchemes}
+      />
+
+      {/* Side-by-Side Scheme Comparison Modal */}
+      {isCompareModalOpen && (
+        <SchemeComparisonModal
+          schemes={comparedSchemes}
+          evaluationMap={evaluationMap}
+          currentLang={currentLang}
+          onClose={() => setIsCompareModalOpen(false)}
+          onRemoveScheme={handleRemoveComparedScheme}
+          onClearAll={handleClearComparedSchemes}
+          onOpenSchemeDetails={(s, tab) => {
+            setIsCompareModalOpen(false);
+            handleOpenSchemeDetails(s, tab);
           }}
         />
       )}

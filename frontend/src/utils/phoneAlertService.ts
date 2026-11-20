@@ -605,3 +605,219 @@ export async function dispatchSchemeAlertToPhone(params: {
 
   return { ok: true, message: sentMsg };
 }
+
+export type AiUserActivityType =
+  | 'new_scheme'
+  | 'profile_saved'
+  | 'scheme_saved'
+  | 'tracker_updated'
+  | 'document_verified';
+
+/**
+ * Syncs the citizen's phone number from their Profile directly into the AI & Admin phone alert subscription.
+ */
+export function syncProfilePhoneToAlertSubscription(
+  rawPhone: string | undefined,
+  lang: Language = 'pa',
+  userId?: string | null,
+  userEmail?: string | null
+): PhoneAlertSubscription {
+  const current = loadPhoneAlertSubscription();
+  const norm = normalizeIndianPhoneNumber(rawPhone || '');
+  if (!norm.isValid) {
+    return current;
+  }
+  const activeAuth = getActiveLoggedInUser();
+  const updated: PhoneAlertSubscription = {
+    ...current,
+    phoneNumber: norm.digits10,
+    enabled: true,
+    notifyNewSchemes: true,
+    notifyTrackerUpdates: true,
+    preferredLang: lang,
+    loggedInUserId: userId || activeAuth.userId || current.loggedInUserId || 'profile-citizen',
+    loggedInUserEmail: userEmail || activeAuth.email || current.loggedInUserEmail,
+    updatedAt: new Date().toISOString(),
+  };
+  savePhoneAlertSubscription(updated);
+  return updated;
+}
+
+/**
+ * AI Autonomous SMS Dispatcher for Profile Mobile Number:
+ * Automatically sends an SMS to the user's profile mobile number whenever:
+ * 1) A New Scheme arrives on the website ('new_scheme'), OR
+ * 2) The user completes work on the website ('profile_saved', 'scheme_saved', 'tracker_updated', 'document_verified')
+ *    ("ai jedo new schme ja user jo vi website vich aapna kam kr da oo di dateils heda ai aap hi user de number te mesage send kr de ki website vich newschme ayi aa ja tuhda kam hogya").
+ */
+export async function dispatchAiProfileActivitySms(params: {
+  phoneNumber?: string;
+  activityType: AiUserActivityType;
+  language: Language;
+  scheme?: Pick<
+    Scheme,
+    'id' | 'titleEn' | 'titlePa' | 'titleHi' | 'benefitAmountText' | 'applicationDeadline' | 'officialPortalUrl'
+  > &
+    Partial<Pick<Scheme, 'minAge' | 'maxAge' | 'maxIncome' | 'requiredDocuments'>>;
+  workSummaryEn?: string;
+  workSummaryPa?: string;
+  workSummaryHi?: string;
+  triggeredBy?: SentPhoneAlertMessage['triggeredBy'];
+  userId?: string | null;
+  userEmail?: string | null;
+}): Promise<{ ok: boolean; message?: SentPhoneAlertMessage; error?: string }> {
+  const sub = loadPhoneAlertSubscription();
+  const candidatePhone = params.phoneNumber?.trim() || sub.phoneNumber;
+  const norm = normalizeIndianPhoneNumber(candidatePhone || '');
+
+  if (!norm.isValid) {
+    return {
+      ok: false,
+      error:
+        params.language === 'pa'
+          ? 'ਪ੍ਰੋਫ਼ਾਈਲ ਵਿੱਚ ਸਹੀ 10-ਅੰਕਾਂ ਦਾ ਮੋਬਾਈਲ ਨੰਬਰ ਦਰਜ ਕਰੋ ਤਾਂ ਜੋ AI ਆਪਣੇ ਆਪ ਮੈਸੇਜ ਭੇਜ ਸਕੇ।'
+          : params.language === 'hi'
+            ? 'प्रोफ़ाइल में सही 10-अंकीय मोबाइल नंबर दर्ज करें ताकि AI स्वतः SMS भेज सके।'
+            : 'Add a valid 10-digit mobile number in your Profile so AI can automatically send SMS updates.',
+    };
+  }
+
+  // Ensure subscription is synced with this valid profile phone number
+  syncProfilePhoneToAlertSubscription(norm.digits10, params.language, params.userId, params.userEmail);
+
+  const triggeredBy = params.triggeredBy || 'AI Autonomous Engine';
+  const seedKey = `${params.activityType}-${params.scheme?.id || 'work'}-${Date.now()}`;
+  const aiSmsCode = generateAiAdminSmsCode(seedKey);
+
+  const schemeTitle = params.scheme
+    ? params.language === 'pa'
+      ? params.scheme.titlePa || params.scheme.titleEn
+      : params.language === 'hi'
+        ? params.scheme.titleHi || params.scheme.titleEn
+        : params.scheme.titleEn
+    : params.language === 'pa'
+      ? 'Janshayak AI ਪ੍ਰੋਫ਼ਾਈਲ ਅਤੇ ਵੈੱਬਸਾਈਟ ਅਪਡੇਟ'
+      : params.language === 'hi'
+        ? 'Janshayak AI प्रोफ़ाइल और वेबसाइट अपडेट'
+        : 'Janshayak AI Profile & Website Activity';
+
+  let smsBody = '';
+  let mappedAlertType: SentPhoneAlertMessage['alertType'] = 'tracker_status';
+
+  if (params.activityType === 'new_scheme' && params.scheme) {
+    mappedAlertType = 'new_scheme';
+    const headerLine =
+      params.language === 'pa'
+        ? '🆕 ਵੈੱਬਸਾਈਟ ਵਿੱਚ ਨਵੀਂ ਸਕੀਮ ਆਈ ਆ! (New Scheme Arrived on Website)\n'
+        : params.language === 'hi'
+          ? '🆕 वेबसाइट में नई योजना आई है! (New Scheme Arrived on Website)\n'
+          : '🆕 Website vich New Scheme Ayi Aa! (New Scheme Arrived on Website)\n';
+    smsBody =
+      headerLine +
+      buildSchemePhoneAlertText({
+        scheme: params.scheme,
+        alertType: 'new_scheme',
+        language: params.language,
+        aiSmsCode,
+        triggeredBy,
+      });
+  } else {
+    mappedAlertType = params.activityType === 'scheme_saved' ? 'scheme_guide' : 'tracker_status';
+    const summaryPa =
+      params.workSummaryPa ||
+      params.workSummaryEn ||
+      'ਤੁਹਾਡਾ ਵੈੱਬਸਾਈਟ ਦਾ ਕੰਮ ਸਫਲਤਾਪੂਰਵਕ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ।';
+    const summaryHi =
+      params.workSummaryHi ||
+      params.workSummaryEn ||
+      'आपका वेबसाइट का काम सफलतापूर्वक पूरा हो गया है।';
+    const summaryEn =
+      params.workSummaryEn ||
+      'Your work on the Janshayak website has been completed and saved.';
+
+    const schemeLinePa = params.scheme
+      ? `\n📋 ਸਕੀਮ: ${schemeTitle}\n💰 ਲਾਭ: ${params.scheme.benefitAmountText}\n📅 ਆਖਰੀ ਮਿਤੀ: ${params.scheme.applicationDeadline}`
+      : '';
+    const schemeLineHi = params.scheme
+      ? `\n📋 योजना: ${schemeTitle}\n💰 लाभ: ${params.scheme.benefitAmountText}\n📅 अंतिम तिथि: ${params.scheme.applicationDeadline}`
+      : '';
+    const schemeLineEn = params.scheme
+      ? `\n📋 Scheme: ${schemeTitle}\n💰 Benefit: ${params.scheme.benefitAmountText}\n📅 Deadline: ${params.scheme.applicationDeadline}`
+      : '';
+
+    if (params.language === 'pa') {
+      smsBody =
+        `🤖 [Janshayak AI ਆਟੋ-SMS • ਕੋਡ: ${aiSmsCode}]\n` +
+        `✅ ਤੁਹਾਡਾ ਕੰਮ ਹੋ ਗਿਆ! (Your Work on Website is Completed)\n` +
+        `📌 ਵੇਰਵਾ: ${summaryPa}${schemeLinePa}\n` +
+        `🌐 ਇਹ ਸਾਰੀ ਜਾਣਕਾਰੀ ਸਾਡੀ Janshayak ਵੈੱਬਸਾਈਟ ਦੇ ਅੰਦਰ ਤੁਹਾਡੀ ਪ੍ਰੋਫ਼ਾਈਲ ਵਿੱਚ ਸੁਰੱਖਿਅਤ ਹੈ (ਹੈਲਪਲਾਈਨ: 1100)`;
+    } else if (params.language === 'hi') {
+      smsBody =
+        `🤖 [Janshayak AI ऑटो-SMS • कोड: ${aiSmsCode}]\n` +
+        `✅ आपका काम हो गया! (Your Work on Website is Completed)\n` +
+        `📌 विवरण: ${summaryHi}${schemeLineHi}\n` +
+        `🌐 यह पूरी जानकारी हमारी Janshayak वेबसाइट के अंदर आपकी प्रोफ़ाइल में सुरक्षित है (हेल्पलाइन: 1100)`;
+    } else {
+      smsBody =
+        `🤖 [Janshayak AI Auto-SMS • Code: ${aiSmsCode}]\n` +
+        `✅ Tuhada Kam Ho Gaya! (Your Work on Website is Completed)\n` +
+        `📌 Activity Details: ${summaryEn}${schemeLineEn}\n` +
+        `🌐 All details are saved inside your Janshayak website profile (Helpline: 1100)`;
+    }
+  }
+
+  const inWebsiteUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/${params.scheme ? `?scheme=${encodeURIComponent(params.scheme.id)}` : ''}`
+      : '/';
+  const whatsappUrl = `https://wa.me/91${norm.digits10}?text=${encodeURIComponent(smsBody)}`;
+  const smsDeviceUri = `sms:+91${norm.digits10}?body=${encodeURIComponent(smsBody)}`;
+
+  let deliveryStatus: SentPhoneAlertMessage['deliveryStatus'] = 'Delivered to Phone';
+  try {
+    const res = await fetch('/api/alerts/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phoneNumber: norm.digits10,
+        e164: norm.e164,
+        userId: params.userId || 'profile-citizen',
+        schemeId: params.scheme?.id || params.activityType,
+        schemeTitle,
+        alertType: mappedAlertType,
+        triggeredBy,
+        aiSmsCode,
+        language: params.language,
+        smsBody,
+      }),
+    });
+    if (!res.ok) {
+      deliveryStatus = 'Queued Offline';
+    }
+  } catch {
+    deliveryStatus = 'Queued Offline';
+  }
+
+  const sentMsg: SentPhoneAlertMessage = {
+    id: `sms-ai-work-${params.activityType}-${Date.now()}`,
+    phoneNumber: norm.digits10,
+    formattedPhone: norm.display,
+    userId: params.userId || 'profile-citizen',
+    userEmail: params.userEmail || undefined,
+    schemeId: params.scheme?.id,
+    schemeTitle,
+    alertType: mappedAlertType,
+    triggeredBy,
+    aiSmsCode,
+    smsBody,
+    inWebsiteUrl,
+    whatsappUrl,
+    smsDeviceUri,
+    sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    deliveryStatus,
+  };
+
+  recordSentPhoneAlert(sentMsg);
+  return { ok: true, message: sentMsg };
+}
+

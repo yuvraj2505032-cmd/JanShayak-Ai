@@ -6,7 +6,8 @@ import {
   buildDynamicEligibilityPreset,
   resolveLocationFromInputOrCoords,
 } from '../utils/cyberFraudScanner';
-import { Sparkles, RotateCcw, CheckCircle2, User, Briefcase, MapPin, IndianRupee, Layers, Check, Globe, Navigation } from 'lucide-react';
+import { normalizeIndianPhoneNumber } from '../utils/phoneAlertService';
+import { Sparkles, RotateCcw, CheckCircle2, User, Briefcase, MapPin, IndianRupee, Layers, Check, Globe, Navigation, Smartphone, Bot } from 'lucide-react';
 
 interface ProfileWizardProps {
   currentLang: Language;
@@ -74,6 +75,7 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
   const profileProgress = useMemo(() => {
     const checks = [
       !!profile.username?.trim(),
+      normalizeIndianPhoneNumber(profile.phoneNumber || '').isValid,
       typeof profile.age === 'number' && profile.age > 0,
       !!profile.gender,
       !!profile.occupation,
@@ -105,8 +107,28 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
       if (profile.username.trim().length > 80) {
         throw new Error('Username must be 80 characters or fewer.');
       }
+      if (profile.phoneNumber && profile.phoneNumber.trim()) {
+        const normPhone = normalizeIndianPhoneNumber(profile.phoneNumber);
+        if (!normPhone.isValid) {
+          throw new Error(
+            currentLang === 'pa'
+              ? normPhone.errorPa || 'ਸਹੀ 10-ਅੰਕਾਂ ਦਾ ਮੋਬਾਈਲ ਨੰਬਰ ਭਰੋ'
+              : currentLang === 'hi'
+                ? normPhone.errorHi || 'सही 10-अंकीय मोबाइल नंबर दर्ज करें'
+                : normPhone.errorEn || 'Please enter a valid 10-digit mobile number.'
+          );
+        }
+      }
       await onSaveProfile();
-      setSaveMessage('Profile saved. You can reopen it from the profile icon.');
+      setSaveMessage(
+        profile.phoneNumber && normalizeIndianPhoneNumber(profile.phoneNumber).isValid
+          ? currentLang === 'pa'
+            ? `✅ ਤੁਹਾਡਾ ਕੰਮ ਹੋ ਗਿਆ! ਪ੍ਰੋਫ਼ਾਈਲ ਸੇਵ ਹੋ ਗਈ ਹੈ ਅਤੇ AI ਨੇ ਤੁਹਾਡੇ ਨੰਬਰ (+91 ${normalizeIndianPhoneNumber(profile.phoneNumber).digits10}) ਤੇ ਮੈਸੇਜ ਭੇਜ ਦਿੱਤਾ ਹੈ।`
+            : currentLang === 'hi'
+              ? `✅ आपका काम हो गया! प्रोफ़ाइल सेव हो गई है और AI ने आपके नंबर (+91 ${normalizeIndianPhoneNumber(profile.phoneNumber).digits10}) पर SMS भेज दिया है।`
+              : `✅ Tuhada Kam Ho Gaya! Profile saved and AI automatically sent a confirmation SMS to +91 ${normalizeIndianPhoneNumber(profile.phoneNumber).digits10}.`
+          : 'Profile saved. You can reopen it from the profile icon.'
+      );
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Could not save your profile.');
     } finally {
@@ -210,6 +232,51 @@ export const ProfileWizard: React.FC<ProfileWizardProps> = ({
             }
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
+        </div>
+
+        {/* Citizen Mobile Number in Profile (AI Auto-SMS for New Schemes & Completed User Work) */}
+        <div>
+          <label htmlFor="citizen-phone-number" className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700">
+            <span className="flex items-center gap-1.5">
+              <Smartphone className="h-3.5 w-3.5 text-emerald-600" />
+              <span>
+                {currentLang === 'pa'
+                  ? 'ਤੁਹਾਡਾ ਮੋਬਾਈਲ ਨੰਬਰ (AI ਆਟੋ-SMS)'
+                  : currentLang === 'hi'
+                    ? 'आपका मोबाइल नंबर (AI ऑटो-SMS)'
+                    : 'Your Mobile Number (AI Auto-SMS)'}
+              </span>
+            </span>
+            {normalizeIndianPhoneNumber(profile.phoneNumber || '').isValid && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-extrabold text-emerald-800">
+                <Bot className="h-3 w-3" />
+                <span>AI SMS Active</span>
+              </span>
+            )}
+          </label>
+          <div className="flex items-center rounded-xl border border-slate-300 bg-white overflow-hidden focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
+            <span className="bg-slate-100 px-2.5 py-2 text-xs font-extrabold text-slate-700 border-r border-slate-200">
+              +91
+            </span>
+            <input
+              id="citizen-phone-number"
+              data-testid="profile-phone-input"
+              type="tel"
+              inputMode="numeric"
+              maxLength={12}
+              value={profile.phoneNumber || ''}
+              onChange={(event) => handleChange('phoneNumber', event.target.value)}
+              placeholder="9876543210"
+              className="w-full px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none"
+            />
+          </div>
+          <p className="mt-1 text-[10px] text-slate-500 leading-snug">
+            {currentLang === 'pa'
+              ? 'ਜਦੋਂ ਵੀ ਵੈੱਬਸਾਈਟ ਵਿੱਚ ਨਵੀਂ ਸਕੀਮ ਆਵੇਗੀ ਜਾਂ ਤੁਹਾਡਾ ਕੰਮ ਪੂਰਾ ਹੋਵੇਗਾ, AI ਆਪਣੇ ਆਪ ਇਸ ਨੰਬਰ ਤੇ ਮੈਸੇਜ ਭੇਜ ਦੇਵੇਗਾ।'
+              : currentLang === 'hi'
+                ? 'जब भी वेबसाइट पर नई योजना आएगी या आपका काम पूरा होगा, AI स्वतः इस नंबर पर SMS भेज देगा।'
+                : 'AI automatically sends SMS here whenever a new scheme arrives or your work on the website is completed.'}
+          </p>
         </div>
 
         {/* Age Input */}

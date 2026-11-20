@@ -64,6 +64,9 @@ export function parseCitizenProfile(value: unknown): CitizenProfile {
   }
   return {
     username: typeof profile.username === 'string' ? profile.username : '',
+    ...(typeof profile.phoneNumber === 'string' && profile.phoneNumber.trim()
+      ? { phoneNumber: profile.phoneNumber.trim() }
+      : {}),
     ...(profile.role === 'Admin' || profile.role === 'Citizen' ? { role: profile.role } : {}),
     ...(typeof profile.state === 'string' && profile.state.trim() ? { state: profile.state.trim() } : {}),
     ...(typeof profile.customLocation === 'string' && profile.customLocation.trim()
@@ -237,6 +240,7 @@ export async function saveCitizenCloudData(
   const ownedDocsArray = extra?.ownedDocs ? Array.from(extra.ownedDocs) : undefined;
   const profilePayload: { [key: string]: Json | undefined } = {
     username: profile.username,
+    ...(profile.phoneNumber ? { phoneNumber: profile.phoneNumber } : {}),
     role: profile.role ?? 'Citizen',
     age: profile.age,
     gender: profile.gender,

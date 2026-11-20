@@ -1,11 +1,97 @@
 import { EligibilityEvaluation, Language, Occupation, Scheme } from '../types/scheme';
 import { getSchemeEra } from '../data/officialPortals';
 
-export type TargetGroupFilter = 'all' | 'women' | 'students' | 'farmers' | 'business';
+export type TargetGroupFilter = 'all' | 'women' | 'students' | 'farmers' | 'seniors' | 'business';
 export type AgeBracketFilter = 'all' | 'under18' | '18to25' | '26to45' | '46to59' | '60plus';
 export type EducationLevelFilter = 'all' | 'enrolled' | 'skill' | 'general';
 export type LevelFilter = 'all' | 'Punjab State' | 'Central Government' | (string & {});
 export type SchemeEraFilter = 'all' | 'new' | 'purani' | 'ai-added';
+export type SchemeSortBy = 'relevance' | 'newest' | 'popularity' | 'benefit_amount';
+
+export interface DashboardSectorCategory {
+  id: string;
+  labelEn: string;
+  labelPa: string;
+  labelHi: string;
+  descriptionEn: string;
+  descriptionPa: string;
+  descriptionHi: string;
+}
+
+export const DASHBOARD_SECTOR_CATEGORIES: DashboardSectorCategory[] = [
+  {
+    id: 'all',
+    labelEn: 'All Sectors',
+    labelPa: 'ਸਾਰੇ ਸੈਕਟਰ (All)',
+    labelHi: 'सभी क्षेत्र (All)',
+    descriptionEn: 'Showing government schemes across all sectors',
+    descriptionPa: 'ਸਾਰੇ ਸਰਕਾਰੀ ਵਿਭਾਗਾਂ ਅਤੇ ਸੈਕਟਰਾਂ ਦੀਆਂ ਸਕੀਮਾਂ',
+    descriptionHi: 'सभी सरकारी विभागों और क्षेत्रों की योजनाएं',
+  },
+  {
+    id: 'Agriculture',
+    labelEn: 'Agriculture',
+    labelPa: 'ਖੇਤੀਬਾੜੀ (Agriculture)',
+    labelHi: 'कृषि (Agriculture)',
+    descriptionEn: 'Crop subsidies, PM-KISAN, irrigation, solar pumps & farmer welfare',
+    descriptionPa: 'ਕਿਸਾਨ ਸਨਮਾਨ ਨਿਧੀ, ਫ਼ਸਲ ਬੀਮਾ, ਸਿੰਚਾਈ ਅਤੇ ਖੇਤੀ ਸਬਸਿਡੀ ਸਕੀਮਾਂ',
+    descriptionHi: 'किसान सम्मान निधि, फसल बीमा, सिंचाई और कृषि सब्सिडी योजनाएं',
+  },
+  {
+    id: 'Education',
+    labelEn: 'Education',
+    labelPa: 'ਸਿੱਖਿਆ (Education)',
+    labelHi: 'शिक्षा (Education)',
+    descriptionEn: 'Post-matric scholarships, school/college stipends, coaching & fellowships',
+    descriptionPa: 'ਪੋਸਟ-ਮੈਟ੍ਰਿਕ ਵਜ਼ੀਫ਼ੇ, ਸਕੂਲ/ਕਾਲਜ ਸਹਾਇਤਾ ਅਤੇ ਵਿਦਿਆਰਥੀ ਭਲਾਈ ਸਕੀਮਾਂ',
+    descriptionHi: 'पोस्ट-मैट्रिक छात्रवृत्ति, स्कूल/कॉलेज सहायता और छात्र कल्याण योजनाएं',
+  },
+  {
+    id: 'Women',
+    labelEn: 'Women',
+    labelPa: 'ਔਰਤਾਂ (Women)',
+    labelHi: 'महिलाएं (Women)',
+    descriptionEn: 'Maternity aid, Ashirwad Shagun, free bus travel, widow support & girl child savings',
+    descriptionPa: 'ਅਸ਼ੀਰਵਾਦ ਸ਼ਗਨ, ਮੁਫ਼ਤ ਬੱਸ ਸਫ਼ਰ, ਜਣੇਪਾ ਸਹਾਇਤਾ ਅਤੇ ਧੀਆਂ/ਔਰਤਾਂ ਦੀਆਂ ਸਕੀਮਾਂ',
+    descriptionHi: 'आशीर्वाद शगुन, मुफ्त बस यात्रा, मातृत्व सहायता और महिला कल्याण योजनाएं',
+  },
+  {
+    id: 'Seniors',
+    labelEn: 'Seniors',
+    labelPa: 'ਬਜ਼ੁਰਗ (Seniors)',
+    labelHi: 'वरिष्ठ नागरिक (Seniors)',
+    descriptionEn: 'Old Age (Budhapa) monthly pension, senior citizen healthcare & social security',
+    descriptionPa: 'ਬੁਢਾਪਾ ਪੈਨਸ਼ਨ, ਬਜ਼ੁਰਗ ਨਾਗਰਿਕ ਸਿਹਤ ਸੁਰੱਖਿਆ ਅਤੇ ਸਮਾਜਿਕ ਸੁਰੱਖਿਆ ਸਕੀਮਾਂ',
+    descriptionHi: 'वृद्धावस्था पेंशन, वरिष्ठ नागरिक स्वास्थ्य और सामाजिक सुरक्षा योजनाएं',
+  },
+  {
+    id: 'Health',
+    labelEn: 'Health',
+    labelPa: 'ਸਿਹਤ (Health)',
+    labelHi: 'स्वास्थ्य (Health)',
+    descriptionEn: '₹5 Lakh Sarbat Sehat Bima, cashless hospital cover & critical care',
+    descriptionPa: '5 ਲੱਖ ਸਰਬਤ ਸਿਹਤ ਬੀਮਾ, ਕੈਸ਼ਲੈੱਸ ਹਸਪਤਾਲ ਇਲਾਜ ਅਤੇ ਸਿਹਤ ਸਕੀਮਾਂ',
+    descriptionHi: '₹5 लाख सरबत सेहत बीमा, कैशलेस अस्पताल इलाज और स्वास्थ्य योजनाएं',
+  },
+  {
+    id: 'Finance',
+    labelEn: 'Finance',
+    labelPa: 'ਵਿੱਤੀ ਸਹਾਇਤਾ (Finance)',
+    labelHi: 'वित्तीय सहायता (Finance)',
+    descriptionEn: 'Direct Benefit Transfers (DBT), savings schemes, subsidies & low-interest credit',
+    descriptionPa: 'ਸਿੱਧੀ ਬੈਂਕ ਖਾਤੇ ਵਿੱਚ ਵਿੱਤੀ ਮਦਦ (DBT), ਬੱਚਤ ਅਤੇ ਕਰਜ਼ਾ ਸਬਸਿਡੀ ਸਕੀਮਾਂ',
+    descriptionHi: 'सीधे बैंक खाते में वित्तीय सहायता (DBT), बचत और ऋण सब्सिडी योजनाएं',
+  },
+  {
+    id: 'Business Owners',
+    labelEn: 'Business & Jobs',
+    labelPa: 'ਕਾਰੋਬਾਰ ਅਤੇ ਰੁਜ਼ਗਾਰ',
+    labelHi: 'व्यवसाय और रोजगार',
+    descriptionEn: 'Mudra loans, PM Vishwakarma artisan grants, street vendor & self-employment credit',
+    descriptionPa: 'ਮੁਦਰਾ ਲੋਨ, ਪੀ.ਐਮ ਵਿਸ਼ਵਕਰਮਾ ਕਾਰੀਗਰ ਮਦਦ ਅਤੇ ਸਵੈ-ਰੁਜ਼ਗਾਰ ਸਕੀਮਾਂ',
+    descriptionHi: 'मुद्रा लोन, पीएम विश्वकर्मा कारीगर सहायता और स्वरोजगार योजनाएं',
+  },
+];
 
 export interface AdvancedSearchFilters {
   query: string;
@@ -18,6 +104,7 @@ export interface AdvancedSearchFilters {
   targetGroup: TargetGroupFilter;
   schemeEra?: SchemeEraFilter;
   savedOnly?: boolean;
+  sortBy?: SchemeSortBy;
 }
 
 export const DEFAULT_ADVANCED_FILTERS: AdvancedSearchFilters = {
@@ -31,6 +118,7 @@ export const DEFAULT_ADVANCED_FILTERS: AdvancedSearchFilters = {
   targetGroup: 'all',
   schemeEra: 'all',
   savedOnly: false,
+  sortBy: 'relevance',
 };
 
 export function isAiAutoAddedScheme(scheme: Scheme): boolean {
@@ -169,6 +257,28 @@ export function isSchemeForFarmers(scheme: Scheme): boolean {
   );
 }
 
+export function isSchemeForSeniors(scheme: Scheme): boolean {
+  if (scheme.eligibleOccupations?.includes('Senior Citizen')) {
+    return true;
+  }
+  if (typeof scheme.minAge === 'number' && scheme.minAge >= 55) {
+    return true;
+  }
+  const text = `${scheme.id} ${scheme.titleEn} ${scheme.descriptionEn} ${scheme.benefitType} ${(scheme.categoryTags || []).join(' ')}`.toLowerCase();
+  return (
+    text.includes('senior citizen') ||
+    text.includes('senior citizens') ||
+    text.includes('old age') ||
+    text.includes('elderly') ||
+    text.includes('budhapa') ||
+    text.includes('vridha') ||
+    text.includes('vayo') ||
+    text.includes('maandhan') ||
+    text.includes('atal pension') ||
+    scheme.benefitType === 'Pension'
+  );
+}
+
 export function isSchemeForBusiness(scheme: Scheme): boolean {
   if (
     scheme.benefitType === 'Loan/Credit' ||
@@ -239,15 +349,23 @@ export function matchesEducationLevel(scheme: Scheme, educationLevel: EducationL
   return true;
 }
 
-export function matchesCategoryFilter(scheme: Scheme, category: string, savedSchemeIds: string[]): boolean {
+export function matchesCategoryFilter(scheme: Scheme, category: string, savedSchemeIds: string[] = []): boolean {
   if (!category || category === 'all') return true;
-  if (category === 'Saved' || category === 'saved') {
+  const normalizedCategory = category.trim();
+  const lowerCategory = normalizedCategory.toLowerCase();
+
+  if (lowerCategory === 'saved') {
     return savedSchemeIds.includes(scheme.id);
   }
-  if (category === 'Students') return isSchemeForStudents(scheme);
-  if (category === 'Women') return isSchemeForWomen(scheme);
-  if (category === 'Farmers') return isSchemeForFarmers(scheme);
-  if (category === 'Business Owners') return isSchemeForBusiness(scheme);
+  if (lowerCategory === 'women' || lowerCategory === 'women & family') {
+    return isSchemeForWomen(scheme);
+  }
+  if (lowerCategory === 'seniors' || lowerCategory === 'senior citizens' || lowerCategory === 'senior citizen' || lowerCategory === 'social security') {
+    return isSchemeForSeniors(scheme);
+  }
+  if (lowerCategory === 'business owners' || lowerCategory === 'employment' || lowerCategory === 'business') {
+    return isSchemeForBusiness(scheme);
+  }
 
   const categoryText = [
     ...(scheme.categoryTags || []),
@@ -261,16 +379,16 @@ export function matchesCategoryFilter(scheme: Scheme, category: string, savedSch
     .join(' ')
     .toLowerCase();
 
-  if (category === 'Agriculture') {
-    return /farm|agri|crop|kisan|dairy|livestock|seed|irrigat/.test(categoryText);
+  if (lowerCategory === 'agriculture' || lowerCategory === 'farmers') {
+    return isSchemeForFarmers(scheme) || /farm|agri|crop|kisan|dairy|livestock|seed|irrigat|rythu|krishi|krushak|kalia|bagwani/.test(categoryText);
   }
-  if (category === 'Health') {
-    return /health|medical|hospital|treatment|medicine|care|insurance/.test(categoryText);
+  if (lowerCategory === 'education' || lowerCategory === 'students') {
+    return isSchemeForStudents(scheme) || /education|student|scholarship|school|college|learning|tuition|girl child|fellowship|matric/.test(categoryText);
   }
-  if (category === 'Education') {
-    return /education|student|scholarship|school|college|learning|tuition|girl child/.test(categoryText);
+  if (lowerCategory === 'health') {
+    return /health|medical|hospital|treatment|medicine|care|insurance|sehat|ayushman|arogyasri|chiranjeevi|sanjeewani/.test(categoryText);
   }
-  if (category === 'Finance') {
+  if (lowerCategory === 'finance') {
     const financeText = [(scheme.categoryTags || []).join(' '), scheme.benefitType, scheme.benefitAmountText]
       .join(' ')
       .toLowerCase();
@@ -281,8 +399,31 @@ export function matchesCategoryFilter(scheme: Scheme, category: string, savedSch
       )
     );
   }
+  if (lowerCategory === 'housing') {
+    return /awas|housing|surya ghar|rooftop solar|ration|electricity|bijli|ujjwala|gruha jyothi/.test(categoryText);
+  }
 
-  return (scheme.categoryTags || []).some((tag) => tag.toLowerCase().includes(category.toLowerCase()));
+  return (scheme.categoryTags || []).some((tag) => tag.toLowerCase().includes(lowerCategory));
+}
+
+export function countSchemesBySectorCategory(
+  schemes: Scheme[],
+  savedSchemeIds: string[] = []
+): Record<string, number> {
+  const counts: Record<string, number> = {
+    all: schemes.length,
+  };
+  for (const sector of DASHBOARD_SECTOR_CATEGORIES) {
+    if (sector.id === 'all') {
+      counts.all = schemes.length;
+    } else {
+      counts[sector.id] = schemes.filter((s) => matchesCategoryFilter(s, sector.id, savedSchemeIds)).length;
+    }
+  }
+  // Also compute convenience aliases
+  counts.Farmers = counts.Agriculture ?? 0;
+  counts.Students = counts.Education ?? 0;
+  return counts;
 }
 
 export function matchesNaturalLanguageQuery(scheme: Scheme, rawQuery: string): boolean {
@@ -348,88 +489,229 @@ export function filterSchemesAdvanced(
   filters: AdvancedSearchFilters,
   savedSchemeIds: string[] = []
 ): EligibilityEvaluation[] {
-  return evaluations
-    .filter((evaluation) => {
-      const { scheme } = evaluation;
+  const filtered = evaluations.filter((evaluation) => {
+    const { scheme } = evaluation;
 
-      // 0. Dedicated Saved Schemes Only toggle filter
-      if (filters.savedOnly && !savedSchemeIds.includes(scheme.id)) return false;
+    // 0. Dedicated Saved Schemes Only toggle filter
+    if (filters.savedOnly && !savedSchemeIds.includes(scheme.id)) return false;
 
-      // 1. Category or special tab filter
-      if (!matchesCategoryFilter(scheme, filters.category, savedSchemeIds)) return false;
+    // 1. Category or special tab filter
+    if (!matchesCategoryFilter(scheme, filters.category, savedSchemeIds)) return false;
 
-      // 2. Target group pill filter
-      if (filters.targetGroup === 'women' && !isSchemeForWomen(scheme)) return false;
-      if (filters.targetGroup === 'students' && !isSchemeForStudents(scheme)) return false;
-      if (filters.targetGroup === 'farmers' && !isSchemeForFarmers(scheme)) return false;
-      if (filters.targetGroup === 'business' && !isSchemeForBusiness(scheme)) return false;
+    // 2. Target group pill filter
+    if (filters.targetGroup === 'women' && !isSchemeForWomen(scheme)) return false;
+    if (filters.targetGroup === 'students' && !isSchemeForStudents(scheme)) return false;
+    if (filters.targetGroup === 'farmers' && !isSchemeForFarmers(scheme)) return false;
+    if (filters.targetGroup === 'seniors' && !isSchemeForSeniors(scheme)) return false;
+    if (filters.targetGroup === 'business' && !isSchemeForBusiness(scheme)) return false;
 
-      // 3. Level (State vs Central or specific Indian State/UT) filter
-      if (filters.level !== 'all') {
-        const lvl = filters.level.toLowerCase();
-        if (filters.level === 'Central Government') {
-          if (scheme.level !== 'Central Government') return false;
-        } else if (filters.level === 'Punjab State' || lvl === 'punjab') {
-          if (scheme.level !== 'Punjab State' && scheme.state?.toLowerCase() !== 'punjab') return false;
-        } else {
-          const matchesState =
-            scheme.state?.toLowerCase() === lvl ||
-            scheme.level.toLowerCase() === lvl ||
-            scheme.level.toLowerCase() === `${lvl} state` ||
-            (scheme.categoryTags || []).some((t) => t.toLowerCase() === lvl);
-          if (!matchesState) return false;
-        }
+    // 3. Level (State vs Central or specific Indian State/UT) filter
+    if (filters.level !== 'all') {
+      const lvl = filters.level.toLowerCase();
+      if (filters.level === 'Central Government') {
+        if (scheme.level !== 'Central Government') return false;
+      } else if (filters.level === 'Punjab State' || lvl === 'punjab') {
+        if (scheme.level !== 'Punjab State' && scheme.state?.toLowerCase() !== 'punjab') return false;
+      } else {
+        const matchesState =
+          scheme.state?.toLowerCase() === lvl ||
+          scheme.level.toLowerCase() === lvl ||
+          scheme.level.toLowerCase() === `${lvl} state` ||
+          (scheme.categoryTags || []).some((t) => t.toLowerCase() === lvl);
+        if (!matchesState) return false;
       }
+    }
 
-      // 4. Occupation filter
-      if (filters.occupation !== 'All') {
-        if (filters.occupation === 'Student') {
-          if (!isSchemeForStudents(scheme)) return false;
-        } else if (filters.occupation === 'Farmer') {
-          if (!isSchemeForFarmers(scheme)) return false;
-        } else if (filters.occupation === 'Self-Employed') {
-          if (
-            !isSchemeForBusiness(scheme) &&
-            scheme.eligibleOccupations &&
-            !scheme.eligibleOccupations.includes('Self-Employed')
-          ) {
-            return false;
-          }
-        } else if (scheme.eligibleOccupations && scheme.eligibleOccupations.length > 0) {
-          if (!scheme.eligibleOccupations.includes(filters.occupation)) return false;
-        }
-      }
-
-      // 5. Age bracket filter
-      if (!matchesAgeBracket(scheme, filters.ageBracket)) return false;
-
-      // 6. Income filter (citizen annual income; include schemes with no income cap or maxIncome >= filters.maxIncome)
-      if (filters.maxIncome !== null && filters.maxIncome > 0) {
-        if (typeof scheme.maxIncome === 'number' && scheme.maxIncome < filters.maxIncome) {
+    // 4. Occupation filter
+    if (filters.occupation !== 'All') {
+      if (filters.occupation === 'Student') {
+        if (!isSchemeForStudents(scheme)) return false;
+      } else if (filters.occupation === 'Farmer') {
+        if (!isSchemeForFarmers(scheme)) return false;
+      } else if (filters.occupation === 'Self-Employed') {
+        if (
+          !isSchemeForBusiness(scheme) &&
+          scheme.eligibleOccupations &&
+          !scheme.eligibleOccupations.includes('Self-Employed')
+        ) {
           return false;
         }
+      } else if (scheme.eligibleOccupations && scheme.eligibleOccupations.length > 0) {
+        if (!scheme.eligibleOccupations.includes(filters.occupation)) return false;
       }
+    }
 
-      // 7. Education level filter
-      if (!matchesEducationLevel(scheme, filters.educationLevel)) return false;
+    // 5. Age bracket filter
+    if (!matchesAgeBracket(scheme, filters.ageBracket)) return false;
 
-      // 8. Scheme Era filter (New 2025-26 vs Purani/Classic vs AI Auto-Added)
-      const eraFilter = filters.schemeEra ?? 'all';
-      if (eraFilter === 'new' && getSchemeEra(scheme) !== 'new') return false;
-      if (eraFilter === 'purani' && getSchemeEra(scheme) !== 'purani') return false;
-      if (eraFilter === 'ai-added' && !isAiAutoAddedScheme(scheme)) return false;
+    // 6. Income filter (citizen annual income; include schemes with no income cap or maxIncome >= filters.maxIncome)
+    if (filters.maxIncome !== null && filters.maxIncome > 0) {
+      if (typeof scheme.maxIncome === 'number' && scheme.maxIncome < filters.maxIncome) {
+        return false;
+      }
+    }
 
-      // 9. Natural language & keyword query
-      if (!matchesNaturalLanguageQuery(scheme, filters.query)) return false;
+    // 7. Education level filter
+    if (!matchesEducationLevel(scheme, filters.educationLevel)) return false;
 
-      return true;
-    })
-    .sort((a, b) => {
-      const aScore = a.isEligible ? 2 : a.isPotentialMatch ? 1 : 0;
-      const bScore = b.isEligible ? 2 : b.isPotentialMatch ? 1 : 0;
-      if (bScore !== aScore) return bScore - aScore;
+    // 8. Scheme Era filter (New 2025-26 vs Purani/Classic vs AI Auto-Added)
+    const eraFilter = filters.schemeEra ?? 'all';
+    if (eraFilter === 'new' && getSchemeEra(scheme) !== 'new') return false;
+    if (eraFilter === 'purani' && getSchemeEra(scheme) !== 'purani') return false;
+    if (eraFilter === 'ai-added' && !isAiAutoAddedScheme(scheme)) return false;
+
+    // 9. Natural language & keyword query
+    if (!matchesNaturalLanguageQuery(scheme, filters.query)) return false;
+
+    return true;
+  });
+
+  return sortSchemeEvaluations(filtered, filters.sortBy ?? 'relevance', savedSchemeIds);
+}
+
+/**
+ * Extracts the primary numeric rupee benefit value from a scheme's benefitAmountText
+ * (e.g. "₹5 Lakh / year" -> 500000, "₹78,000 Direct Bank Subsidy" -> 78000, "₹6,000 / year" -> 6000).
+ */
+export function extractNumericBenefitAmount(scheme: Pick<Scheme, 'benefitAmountText'>): number {
+  const text = String(scheme.benefitAmountText || '');
+  if (!text) return 0;
+
+  const regex = /(₹|rs\.?\s*|inr\s*)?(\d+(?:,\d+)*(?:\.\d+)?)\s*(crore|cr|lakh|lac|thousand|k)?/gi;
+  let maxAmount = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    const hasCurrencyPrefix = Boolean(match[1]);
+    const rawNum = parseFloat(match[2].replace(/,/g, ''));
+    const unit = (match[3] || '').toLowerCase();
+
+    if (!Number.isFinite(rawNum) || rawNum <= 0) continue;
+
+    let multiplier = 1;
+    if (unit === 'crore' || unit === 'cr') {
+      multiplier = 10_000_000;
+    } else if (unit === 'lakh' || unit === 'lac') {
+      multiplier = 100_000;
+    } else if (unit === 'thousand' || unit === 'k') {
+      multiplier = 1_000;
+    } else if (!hasCurrencyPrefix && rawNum < 100) {
+      // Ignore small counts like "3 installments", "300 units", "5% interest" when no currency or unit is attached
+      continue;
+    }
+
+    const value = Math.round(rawNum * multiplier);
+    if (value > maxAmount) {
+      maxAmount = value;
+    }
+  }
+
+  return maxAmount;
+}
+
+const FLAGSHIP_POPULARITY_WEIGHTS: Record<string, number> = {
+  'pm-kisan': 1000,
+  'sarbat-sehat-bima': 980,
+  'punjab-300-units-free-electricity': 960,
+  'post-matric-sc': 940,
+  'punjab-old-age-pension': 920,
+  'punjab-free-bus-women': 900,
+  'smart-ration-card': 880,
+  'punjab-ashirwad': 860,
+  'pm-vishwakarma': 850,
+  'pm-surya-ghar': 840,
+  'pm-mudra-yojana': 820,
+  'pm-awas-gramin': 800,
+};
+
+/**
+ * Computes a deterministic popularity score for sorting schemes by 'Popularity'.
+ */
+export function computeSchemePopularityScore(
+  scheme: Scheme,
+  evaluation?: EligibilityEvaluation,
+  savedSchemeIds: string[] = []
+): number {
+  let score = FLAGSHIP_POPULARITY_WEIGHTS[scheme.id] ?? 500;
+  if (savedSchemeIds.includes(scheme.id)) {
+    score += 120;
+  }
+  if (!scheme.eligibleOccupations || scheme.eligibleOccupations.length >= 4) {
+    score += 60;
+  }
+  if (evaluation) {
+    score += Math.round(evaluation.matchPercentage * 0.5);
+  }
+  return score;
+}
+
+/**
+ * Computes a deterministic recency rank for sorting schemes by 'Newest'.
+ */
+export function computeSchemeNewestRank(scheme: Scheme): number {
+  let score = 0;
+  const era = getSchemeEra(scheme);
+  if (era === 'new') {
+    score += 2000;
+  }
+  if (isAiAutoAddedScheme(scheme)) {
+    score += 1000;
+  }
+  const combinedMeta = `${scheme.verifiedDate || ''} ${scheme.applicationDeadline || ''} ${(scheme.categoryTags || []).join(' ')} ${scheme.titleEn}`;
+  if (combinedMeta.includes('2026')) {
+    score += 600;
+  } else if (combinedMeta.includes('2025')) {
+    score += 300;
+  }
+  if (/november 2026|october 2026|2026-27/i.test(combinedMeta)) {
+    score += 150;
+  }
+  return score;
+}
+
+/**
+ * Sorts scheme evaluations by 'newest', 'popularity', 'benefit_amount', or default 'relevance'.
+ */
+export function sortSchemeEvaluations(
+  evaluations: EligibilityEvaluation[],
+  sortBy: SchemeSortBy = 'relevance',
+  savedSchemeIds: string[] = []
+): EligibilityEvaluation[] {
+  const copy = [...evaluations];
+
+  if (sortBy === 'benefit_amount') {
+    return copy.sort((a, b) => {
+      const diff = extractNumericBenefitAmount(b.scheme) - extractNumericBenefitAmount(a.scheme);
+      if (diff !== 0) return diff;
       return b.matchPercentage - a.matchPercentage;
     });
+  }
+
+  if (sortBy === 'newest') {
+    return copy.sort((a, b) => {
+      const diff = computeSchemeNewestRank(b.scheme) - computeSchemeNewestRank(a.scheme);
+      if (diff !== 0) return diff;
+      return b.matchPercentage - a.matchPercentage;
+    });
+  }
+
+  if (sortBy === 'popularity') {
+    return copy.sort((a, b) => {
+      const diff =
+        computeSchemePopularityScore(b.scheme, b, savedSchemeIds) -
+        computeSchemePopularityScore(a.scheme, a, savedSchemeIds);
+      if (diff !== 0) return diff;
+      return b.matchPercentage - a.matchPercentage;
+    });
+  }
+
+  // Default: 'relevance'
+  return copy.sort((a, b) => {
+    const aScore = a.isEligible ? 2 : a.isPotentialMatch ? 1 : 0;
+    const bScore = b.isEligible ? 2 : b.isPotentialMatch ? 1 : 0;
+    if (bScore !== aScore) return bScore - aScore;
+    return b.matchPercentage - a.matchPercentage;
+  });
 }
 
 export function countActiveAdvancedFilters(filters: AdvancedSearchFilters): number {

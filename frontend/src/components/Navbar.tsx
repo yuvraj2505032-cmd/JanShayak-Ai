@@ -5,6 +5,8 @@ import { TRANSLATIONS } from '../data/translations';
 import { SupabaseAccount } from './SupabaseAccount';
 import type { SupabaseAccountProps } from './SupabaseAccount';
 import { PWAInstallButton } from './PWAInstallButton';
+import { NotificationCenter } from './NotificationCenter';
+import type { SchemeNotificationItem } from '../utils/schemeNotifications';
 
 interface NavbarProps {
   currentLang: Language;
@@ -15,6 +17,12 @@ interface NavbarProps {
   cloudAccount: SupabaseAccountProps;
   theme?: 'light' | 'dark';
   onToggleTheme?: () => void;
+  notifications?: SchemeNotificationItem[];
+  onMarkNotificationRead?: (id: string) => void;
+  onMarkAllNotificationsRead?: () => void;
+  onDismissNotification?: (id: string) => void;
+  onOpenSchemeById?: (schemeId: string) => void;
+  onTriggerDemoStatusAdvance?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +34,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   cloudAccount,
   theme = 'light',
   onToggleTheme,
+  notifications = [],
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead,
+  onDismissNotification,
+  onOpenSchemeById,
+  onTriggerDemoStatusAdvance,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -207,6 +221,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
           )}
+
+          <NotificationCenter
+            notifications={notifications}
+            currentLang={currentLang}
+            onMarkRead={(id) => onMarkNotificationRead?.(id)}
+            onMarkAllRead={() => onMarkAllNotificationsRead?.()}
+            onDismiss={(id) => onDismissNotification?.(id)}
+            onOpenSchemeById={(schemeId) => onOpenSchemeById?.(schemeId)}
+            onNavigateTab={selectTab}
+            onTriggerDemoStatusAdvance={onTriggerDemoStatusAdvance}
+          />
 
           <SupabaseAccount
             {...cloudAccount}

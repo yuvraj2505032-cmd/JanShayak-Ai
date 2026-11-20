@@ -89,6 +89,7 @@ export interface Scheme {
 
 export interface CitizenProfile {
   username: string;
+  phoneNumber?: string;
   role?: UserRole;
   state?: string;
   customLocation?: string;

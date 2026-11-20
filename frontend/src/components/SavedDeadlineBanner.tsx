@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Language, Scheme } from '../types/scheme';
-import { PhoneAlertCenter } from './PhoneAlertCenter';
 import {
   getUpcomingSavedSchemeDeadlines,
   getUnsavedUpcomingSchemeDeadlines,
@@ -16,7 +15,9 @@ import {
   BookmarkPlus,
   ChevronDown,
   ChevronUp,
-  AlertTriangle
+  AlertTriangle,
+  Bot,
+  Smartphone
 } from 'lucide-react';
 
 interface SavedDeadlineBannerProps {
@@ -24,6 +25,8 @@ interface SavedDeadlineBannerProps {
   savedSchemeIds: Set<string>;
   currentLang: Language;
   referenceDate?: Date;
+  profilePhoneNumber?: string;
+  onOpenProfile?: () => void;
   onOpenSchemeDetails: (
     scheme: Scheme,
     initialTab?: 'overview' | 'estimator' | 'eligibility' | 'documents' | 'steps' | 'tutorial'
@@ -38,6 +41,8 @@ export const SavedDeadlineBanner: React.FC<SavedDeadlineBannerProps> = ({
   savedSchemeIds,
   currentLang,
   referenceDate,
+  profilePhoneNumber,
+  onOpenProfile,
   onOpenSchemeDetails,
   onToggleSave,
   onOpenDeadlineHub,
@@ -406,8 +411,62 @@ export const SavedDeadlineBanner: React.FC<SavedDeadlineBannerProps> = ({
             </div>
           )}
 
-          {/* Direct Phone Number SMS / WhatsApp Alert Box on Dashboard */}
-          <PhoneAlertCenter currentLang={currentLang} schemes={schemes} compact />
+          {/* Compact Read-Only AI Auto-SMS Profile Link Strip (Manual SMS controls restricted to AI & Admin Console) */}
+          <div
+            data-testid="dashboard-profile-sms-status-strip"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-2.5 text-xs text-emerald-950"
+          >
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                <Bot className="h-4 w-4" />
+              </span>
+              <div>
+                <span className="font-extrabold">
+                  {profilePhoneNumber
+                    ? currentLang === 'pa'
+                      ? `🤖 AI ਆਟੋ-SMS ਚਾਲੂ ਹੈ (+91 ${profilePhoneNumber} ਪ੍ਰੋਫ਼ਾਈਲ ਵਿੱਚ ਜੁੜਿਆ ਹੋਇਆ): `
+                      : currentLang === 'hi'
+                        ? `🤖 AI ऑटो-SMS सक्रिय है (+91 ${profilePhoneNumber} प्रोफ़ाइल में जुड़ा है): `
+                        : `🤖 AI Auto-SMS Active (+91 ${profilePhoneNumber} in Profile): `
+                    : currentLang === 'pa'
+                      ? '📱 ਆਪਣੀ ਪ੍ਰੋਫ਼ਾਈਲ ਵਿੱਚ ਮੋਬਾਈਲ ਨੰਬਰ ਐਡ ਕਰੋ: '
+                      : currentLang === 'hi'
+                        ? '📱 अपनी प्रोफ़ाइल में मोबाइल नंबर जोड़ें: '
+                        : '📱 Add your mobile number in My Profile: '}
+                </span>
+                <span className="text-slate-700 font-medium">
+                  {currentLang === 'pa'
+                    ? 'ਜਦੋਂ ਵੀ ਵੈੱਬਸਾਈਟ ਵਿੱਚ ਨਵੀਂ ਸਕੀਮ ਆਵੇਗੀ ਜਾਂ ਤੁਹਾਡਾ ਕੰਮ ਪੂਰਾ ਹੋਵੇਗਾ, AI ਆਪਣੇ ਆਪ ਤੁਹਾਡੇ ਨੰਬਰ ਤੇ ਮੈਸੇਜ ਭੇਜ ਦੇਵੇਗਾ।'
+                    : currentLang === 'hi'
+                      ? 'जब भी वेबसाइट पर नई योजना आएगी या आपका काम पूरा होगा, AI स्वतः आपके नंबर पर SMS भेज देगा।'
+                      : 'AI automatically sends an SMS whenever a new scheme arrives or your work on the website is completed.'}
+                </span>
+              </div>
+            </div>
+            {onOpenProfile && (
+              <button
+                type="button"
+                data-testid="open-profile-phone-settings-btn"
+                onClick={onOpenProfile}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white cursor-pointer shrink-0"
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+                <span>
+                  {profilePhoneNumber
+                    ? currentLang === 'pa'
+                      ? 'ਪ੍ਰੋਫ਼ਾਈਲ ਨੰਬਰ ਦੇਖੋ'
+                      : currentLang === 'hi'
+                        ? 'प्रोफ़ाइल नंबर देखें'
+                        : 'Profile Mobile Number'
+                    : currentLang === 'pa'
+                      ? 'ਪ੍ਰੋਫ਼ਾਈਲ ਵਿੱਚ ਨੰਬਰ ਜੋੜੋ'
+                      : currentLang === 'hi'
+                        ? 'प्रोफ़ाइल में नंबर जोड़ें'
+                        : 'Add Number in Profile'}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </section>

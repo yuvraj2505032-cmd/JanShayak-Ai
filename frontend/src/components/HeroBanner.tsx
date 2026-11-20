@@ -32,14 +32,15 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
 
   const filterItems = [
     { value: 'all', label: t.catAll },
-    { value: 'Students', label: t.catStudents },
-    { value: 'Women', label: currentLang === 'pa' ? 'ਔਰਤਾਂ (Women)' : currentLang === 'hi' ? 'महिलाएं (Women)' : 'Women' },
-    { value: 'Farmers', label: currentLang === 'pa' ? 'ਕਿਸਾਨ (Farmers)' : currentLang === 'hi' ? 'किसान (Farmers)' : 'Farmers' },
-    { value: 'Business Owners', label: currentLang === 'pa' ? 'ਕਾਰੋਬਾਰ (Business)' : currentLang === 'hi' ? 'व्यवसाय (Business)' : 'Business Owners' },
     { value: 'Agriculture', label: t.catAgriculture },
-    { value: 'Health', label: t.catHealth },
     { value: 'Education', label: t.catEducation },
+    { value: 'Women', label: currentLang === 'pa' ? 'ਔਰਤਾਂ (Women)' : currentLang === 'hi' ? 'महिलाएं (Women)' : 'Women' },
+    { value: 'Seniors', label: currentLang === 'pa' ? 'ਬਜ਼ੁਰਗ (Seniors)' : currentLang === 'hi' ? 'वरिष्ठ नागरिक (Seniors)' : 'Seniors' },
+    { value: 'Health', label: t.catHealth },
     { value: 'Finance', label: t.catFinance },
+    { value: 'Business Owners', label: currentLang === 'pa' ? 'ਕਾਰੋਬਾਰ (Business)' : currentLang === 'hi' ? 'व्यवसाय (Business)' : 'Business Owners' },
+    { value: 'Students', label: t.catStudents },
+    { value: 'Farmers', label: currentLang === 'pa' ? 'ਕਿਸਾਨ (Farmers)' : currentLang === 'hi' ? 'किसान (Farmers)' : 'Farmers' },
   ];
 
   const smartSuggestions = getSmartSearchSuggestions(searchQuery, currentLang);

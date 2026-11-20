@@ -57,6 +57,7 @@ interface SmartDashboardHubProps {
   isAiAutoSyncEnabled?: boolean;
   onToggleAiAutoSync?: (enabled: boolean) => void;
   latestAutoAddedTitle?: string;
+  isAdminRole?: boolean;
 }
 
 export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
@@ -78,6 +79,7 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
   isAiAutoSyncEnabled = true,
   onToggleAiAutoSync,
   latestAutoAddedTitle,
+  isAdminRole = false,
 }) => {
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 640 : true
@@ -129,6 +131,13 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
       icon: <Sprout className="h-3.5 w-3.5 shrink-0" />,
     },
     {
+      id: 'seniors',
+      labelEn: 'Senior Citizens (60+)',
+      labelPa: 'ਬਜ਼ੁਰਗ ਨਾਗਰਿਕ (60+)',
+      labelHi: 'वरिष्ठ नागरिक (60+)',
+      icon: <Clock className="h-3.5 w-3.5 shrink-0" />,
+    },
+    {
       id: 'business',
       labelEn: 'Business & Artisans',
       labelPa: 'ਕਾਰੋਬਾਰ / ਕਾਰੀਗਰ',
@@ -157,7 +166,8 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
 
   return (
     <div className="mb-6 sm:mb-8 space-y-4 sm:space-y-5" data-testid="smart-dashboard-hub">
-      {/* 0. AI Autonomous Scheme Discovery Bar: Auto-Add New (2025-26) + All 36 States + Purani Schemes */}
+      {/* 0. AI Autonomous Scheme Discovery Bar (Restricted to AI & Admin Role Only) */}
+      {isAdminRole && (
       <div
         data-testid="ai-autonomous-sync-bar"
         className="rounded-2xl border border-blue-200/90 bg-slate-900 bg-linear-to-r bg-gradient-to-r from-slate-900 via-blue-950 to-teal-950 p-3.5 sm:p-4 text-white shadow-md"
@@ -386,6 +396,7 @@ export const SmartDashboardHub: React.FC<SmartDashboardHubProps> = ({
           </p>
         )}
       </div>
+      )}
 
       {/* 1. Provenance & Trust Strip: Verified Govt Data vs. AI Guidance */}
       <div className="flex flex-col justify-between gap-3 rounded-2xl border border-teal-200/80 bg-gradient-to-r from-teal-50/90 via-white to-blue-50/80 px-4 py-3 shadow-2xs dark:border-teal-900/60 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/50 sm:flex-row sm:items-center">
