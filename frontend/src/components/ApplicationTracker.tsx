@@ -3,7 +3,6 @@ import { ApplicationTrackerItem, Language, Scheme } from '../types/scheme';
 import { TRANSLATIONS } from '../data/translations';
 import { GOV_SCHEMES } from '../data/schemes';
 import { PhoneAlertCenter } from './PhoneAlertCenter';
-import { loadPhoneAlertSubscription, dispatchSchemeAlertToPhone } from '../utils/phoneAlertService';
 import { printSchemeDocument } from '../utils/printHelper';
 import { 
   BookmarkCheck, 
@@ -72,17 +71,6 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
 
   const handleStatusClick = (item: ApplicationTrackerItem, nextStatus: ApplicationTrackerItem['status']) => {
     onUpdateStatus(item.id, nextStatus);
-    const sub = loadPhoneAlertSubscription();
-    if (sub.phoneNumber) {
-      const targetScheme = GOV_SCHEMES.find((s) => s.id === item.schemeId) || GOV_SCHEMES[0];
-      dispatchSchemeAlertToPhone({
-        phoneNumber: sub.phoneNumber,
-        scheme: targetScheme,
-        alertType: 'tracker_status',
-        language: currentLang,
-        trackerStageLabel: getDisplayStageLabel(nextStatus),
-      }).catch(() => {});
-    }
   };
 
   const handleAddNewScheme = () => {

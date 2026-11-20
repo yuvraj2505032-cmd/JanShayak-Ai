@@ -5,7 +5,13 @@ import { CitizenProfile, Scheme } from '../types/scheme';
 import { GOV_SCHEMES } from '../data/schemes';
 import { INDIAN_22_LANGUAGES, getIndianLanguageConfig, detectQueryTopicIn22Languages } from './indianLanguages';
 import { generateOfflineChatReply } from './offlineCache';
-import { normalizeIndianPhoneNumber, buildSchemePhoneAlertText } from './phoneAlertService';
+import {
+  normalizeIndianPhoneNumber,
+  buildSchemePhoneAlertText,
+  dispatchSchemeAlertToPhone,
+  syncActiveLoggedInUser,
+  resetOneTimeAlertLockForUser,
+} from './phoneAlertService';
 import { filterSchemesAdvanced, DEFAULT_ADVANCED_FILTERS, countActiveAdvancedFilters } from './advancedSchemeFilter';
 import { analyzePhotoJawabInput, detectPhotoJawabCategory } from './photoJawabHelper';
 
@@ -199,7 +205,7 @@ test('indianLanguages: all 22 Scheduled Indian Languages have native greetings, 
   assert.equal(detectQueryTopicIn22Languages('آشرواد اسکیم شگن').isWomen, true);
 });
 
-test('phoneAlertService: validates Indian phone numbers and formats trilingual SMS scheme alerts', () => {
+test('phoneAlertService: enforces 1-time New Scheme SMS strictly for logged-in users with full in-website details', async () => {
   const validPhone = normalizeIndianPhoneNumber('+91 98765-43210');
   assert.equal(validPhone.isValid, true);
   assert.equal(validPhone.digits10, '9876543210');
@@ -209,24 +215,59 @@ test('phoneAlertService: validates Indian phone numbers and formats trilingual S
   assert.equal(invalidPhone.isValid, false);
 
   const scheme = GOV_SCHEMES[0];
-  const smsPa = buildSchemePhoneAlertText({
+  const newSchemeSmsPa = buildSchemePhoneAlertText({
+    scheme,
+    alertType: 'new_scheme',
+    language: 'pa',
+  });
+  assert.ok(newSchemeSmsPa.includes('1100'));
+  assert.ok(newSchemeSmsPa.includes(scheme.titlePa));
+  assert.ok(newSchemeSmsPa.includes('Google'));
+  assert.ok(newSchemeSmsPa.includes('JAN-AI-'));
+
+  // 1. Non-new_scheme alerts are strictly blocked
+  syncActiveLoggedInUser({ id: 'test-citizen-1', email: 'citizen@janshayak.in' });
+  resetOneTimeAlertLockForUser('test-citizen-1');
+
+  const deadlineBlocked = await dispatchSchemeAlertToPhone({
+    phoneNumber: '9876543210',
     scheme,
     alertType: 'deadline',
     language: 'pa',
-    daysLeft: 10,
   });
-  assert.ok(smsPa.includes('1100'));
-  assert.ok(smsPa.includes(scheme.titlePa));
-  assert.ok(smsPa.includes('JAN-AI-'));
+  assert.equal(deadlineBlocked.ok, false);
+  assert.equal(deadlineBlocked.skippedReason, 'only_new_scheme_allowed');
 
-  const trackerSms = buildSchemePhoneAlertText({
+  // 2. Logged-out users are strictly blocked
+  syncActiveLoggedInUser(null);
+  const loggedOutBlocked = await dispatchSchemeAlertToPhone({
+    phoneNumber: '9876543210',
     scheme,
-    alertType: 'tracker_status',
-    language: 'en',
-    trackerStageLabel: 'Documents Ready',
+    alertType: 'new_scheme',
+    language: 'pa',
   });
-  assert.ok(trackerSms.includes('Documents Ready'));
-  assert.ok(trackerSms.includes('JAN-AI-'));
+  assert.equal(loggedOutBlocked.ok, false);
+  assert.equal(loggedOutBlocked.skippedReason, 'login_required');
+
+  // 3. Logged-in user receives the new_scheme message strictly 1 time, and 2nd attempt is blocked
+  syncActiveLoggedInUser({ id: 'test-citizen-1', email: 'citizen@janshayak.in' });
+  const firstSend = await dispatchSchemeAlertToPhone({
+    phoneNumber: '9876543210',
+    scheme,
+    alertType: 'new_scheme',
+    language: 'pa',
+  });
+  assert.equal(firstSend.ok, true);
+  assert.ok(firstSend.message);
+
+  const secondSendBlocked = await dispatchSchemeAlertToPhone({
+    phoneNumber: '9876543210',
+    scheme: GOV_SCHEMES[1],
+    alertType: 'new_scheme',
+    language: 'pa',
+  });
+  assert.equal(secondSendBlocked.ok, false);
+  assert.equal(secondSendBlocked.skippedReason, 'already_sent_once');
 });
 
 test('advancedSchemeFilter: savedOnly toggles between all schemes and user-saved schemes', () => {

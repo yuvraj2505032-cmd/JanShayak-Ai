@@ -618,30 +618,31 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
                 dispatchSchemeAlertToPhone({
                   phoneNumber: phone,
                   scheme,
-                  alertType: 'scheme_guide',
+                  alertType: 'new_scheme',
                   language: currentLang,
                   triggeredBy: 'Admin Broadcast',
                 }).catch(() => {});
               }}
               data-testid={`send-scheme-sms-btn-${scheme.id}`}
               className="flex items-center gap-1 text-[11px] font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-              title="Admin Broadcast: Dispatch Official Scheme SMS Alert to Registered Citizen Phone"
+              title="Admin Broadcast: Dispatch 1-Time Official New Scheme SMS Alert to Logged-In Citizen Phone"
             >
               <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
-              <span className="hidden sm:inline">{currentLang === 'pa' ? 'Admin SMS' : 'Admin SMS'}</span>
+              <span className="hidden sm:inline">{currentLang === 'pa' ? '1-Time SMS' : '1-Time SMS'}</span>
             </button>
           )}
 
-          <a
-            href={scheme.officialPortalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-white hover:bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-colors"
-            title="Open verified official portal"
+          <button
+            type="button"
+            onClick={() => onOpenDetails(scheme, 'steps')}
+            className="flex items-center gap-1 text-[11px] font-bold text-teal-900 hover:text-teal-950 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+            title="100% scheme steps, eligibility & documents inside our website — no need to search on Google"
           >
-            <ExternalLink className="w-3 h-3" />
-            <span className="hidden sm:inline">{currentLang === 'pa' ? 'ਪੋਰਟਲ' : currentLang === 'hi' ? 'पोर्टल' : 'Portal'}</span>
-          </a>
+            <FileText className="w-3 h-3 text-teal-700" />
+            <span className="hidden sm:inline">
+              {currentLang === 'pa' ? 'ਪੂਰਾ ਤਰੀਕਾ (In-Site)' : currentLang === 'hi' ? 'पूरी गाइड (In-Site)' : 'Full In-Site Guide'}
+            </span>
+          </button>
         </div>
 
         <button

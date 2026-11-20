@@ -32,7 +32,11 @@ import {
   type AdvancedSearchFilters,
 } from './utils/advancedSchemeFilter';
 import { setOfflineRecentlyViewed } from './utils/offlineCache';
-import { loadPhoneAlertSubscription, dispatchSchemeAlertToPhone } from './utils/phoneAlertService';
+import {
+  loadPhoneAlertSubscription,
+  dispatchSchemeAlertToPhone,
+  syncActiveLoggedInUser,
+} from './utils/phoneAlertService';
 
 // Components (eagerly imported so 100% of tabs and modals work offline without network chunk errors)
 import { HeroBanner } from './components/HeroBanner';
@@ -516,6 +520,32 @@ export default function App() {
     };
   }, [authReady, localAuthReady, authUser?.id, localAccount?.id]);
 
+  // Sync currently logged-in website user with the 1-time New Scheme SMS Alert service
+  useEffect(() => {
+    const activeLoggedUser = authUser
+      ? { id: authUser.id, email: authUser.email || 'user@janshayak.in' }
+      : localAccount
+        ? { id: `local-${localAccount.id}`, email: localAccount.email }
+        : null;
+    syncActiveLoggedInUser(activeLoggedUser);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('janshayak:auth-changed', { detail: activeLoggedUser }));
+    }
+  }, [authUser, localAccount]);
+
+  // Listen for in-website scheme open events from 1-Time SMS Alerts (so user never needs Google)
+  useEffect(() => {
+    const handleOpenInWebsite = (event: Event) => {
+      const custom = event as CustomEvent<Scheme>;
+      if (custom.detail) {
+        setSelectedSchemeModalTab('overview');
+        setSelectedScheme(custom.detail);
+      }
+    };
+    window.addEventListener('janshayak:open-inwebsite-scheme', handleOpenInWebsite);
+    return () => window.removeEventListener('janshayak:open-inwebsite-scheme', handleOpenInWebsite);
+  }, []);
+
   // Keep the signed-in account's cache separate from guest data on shared devices.
   useEffect(() => {
     const ownerId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
@@ -714,15 +744,19 @@ export default function App() {
           ...prev
         ]);
 
-        // AI Autonomous Engine automatically sends SMS code & scheme alert to registered citizen phone
+        // 1-Time New Scheme SMS Alert: ONLY when a new scheme arrives AND user is logged into our website (strictly 1 message limit)
+        const loggedUserId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
+        const loggedUserEmail = authUser?.email ?? localAccount?.email ?? null;
         const activeSub = loadPhoneAlertSubscription();
-        if (activeSub.enabled && activeSub.phoneNumber) {
+        if (loggedUserId && activeSub.enabled && activeSub.phoneNumber) {
           void dispatchSchemeAlertToPhone({
             phoneNumber: activeSub.phoneNumber,
             scheme: schemeToAdd,
             alertType: 'new_scheme',
             language: currentLang,
             triggeredBy: 'AI Autonomous Engine',
+            loggedInUserId: loggedUserId,
+            loggedInUserEmail: loggedUserEmail,
           });
         }
       }
@@ -1085,6 +1119,23 @@ export default function App() {
     if (!adminSessionToken) throw new Error('Unlock the admin portal before managing schemes.');
     const { nextState, createdScheme } = addAdminScheme(adminKnowledgeState, input, 'Admin');
     setAdminKnowledgeState(nextState);
+
+    // When a new scheme arrives on the website, send 1-time SMS alert ONLY if the user is logged into our website
+    const loggedUserId = authUser?.id ?? (localAccount ? `local-${localAccount.id}` : null);
+    const loggedUserEmail = authUser?.email ?? localAccount?.email ?? null;
+    const activeSub = loadPhoneAlertSubscription();
+    if (loggedUserId && activeSub.enabled && activeSub.phoneNumber) {
+      void dispatchSchemeAlertToPhone({
+        phoneNumber: activeSub.phoneNumber,
+        scheme: createdScheme,
+        alertType: 'new_scheme',
+        language: currentLang,
+        triggeredBy: 'Admin Broadcast',
+        loggedInUserId: loggedUserId,
+        loggedInUserEmail: loggedUserEmail,
+      });
+    }
+
     return createdScheme;
   };
 
@@ -1890,17 +1941,49 @@ export default function App() {
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
                 <SearchX className="w-10 h-10 text-slate-400 mx-auto" />
-                <h3 className="font-bold text-slate-800">No schemes matched your search criteria</h3>
-                <p className="text-xs text-slate-500">
-                  Try adjusting the search query or switching the filter back to "All Schemes".
+                <h3 className="font-bold text-slate-800">
+                  {currentLang === 'pa'
+                    ? 'ਕੋਈ ਸਕੀਮ ਨਹੀਂ ਮਿਲੀ — ਪਰ Google ਤੇ ਜਾਣ ਦੀ ਲੋੜ ਨਹੀਂ!'
+                    : currentLang === 'hi'
+                      ? 'कोई योजना नहीं मिली — पर Google पर जाने की ज़रूरत नहीं!'
+                      : 'No matching scheme card yet — No need to go to Google!'}
+                </h3>
+                <p className="text-xs text-slate-500 max-w-lg mx-auto">
+                  {currentLang === 'pa'
+                    ? 'ਸਕੀਮਾਂ ਬਾਰੇ ਪਤਾ ਕਰਨ ਲਈ ਤੁਹਾਨੂੰ Google ਤੇ ਜਾਣ ਦੀ ਲੋੜ ਨਹੀਂ। ਹੇਠਾਂ ਕਲਿੱਕ ਕਰੋ ਅਤੇ ਸਾਡੀ ਵੈੱਬਸਾਈਟ ਦੇ ਅੰਦਰ ਹੀ ਇਸ ਸਕੀਮ ਦੀ ਪੂਰੀ ਜਾਣਕਾਰੀ (ਯੋਗਤਾ, ਕਾਗਜ਼ਾਤ, ਫਾਰਮ ਅਤੇ ਅਪਲਾਈ ਕਰਨ ਦਾ ਤਰੀਕਾ) ਤੁਰੰਤ ਪ੍ਰਾਪਤ ਕਰੋ।'
+                    : currentLang === 'hi'
+                      ? 'योजनाओं के बारे में जानने के लिए Google पर जाने की आवश्यकता नहीं है। नीचे क्लिक करें और हमारी वेबसाइट के अंदर ही इस योजना की पूरी गाइड तुरंत खोलें।'
+                      : 'You never need to leave our website or search on Google. Click below to instantly generate and open the complete A-to-Z scheme guide right inside our website.'}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleResetAllFilters}
-                  className="text-xs font-bold text-blue-700 underline mt-2 cursor-pointer"
-                >
-                  Clear all filters
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  {searchQuery.trim() && (
+                    <button
+                      type="button"
+                      data-testid="generate-inwebsite-scheme-btn"
+                      onClick={async () => {
+                        const topic = searchQuery.trim();
+                        await handleTriggerAiDiscovery(topic, 'AI On-Demand');
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs font-extrabold text-white shadow-xs cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>
+                        {currentLang === 'pa'
+                          ? `🌐 "${searchQuery.trim()}" ਦੀ ਪੂਰੀ ਜਾਣਕਾਰੀ ਸਾਡੀ ਵੈੱਬਸਾਈਟ ਵਿੱਚ ਹੀ ਖੋਲ੍ਹੋ`
+                          : currentLang === 'hi'
+                            ? `🌐 "${searchQuery.trim()}" की पूरी जानकारी हमारी वेबसाइट में खोलें`
+                            : `🌐 Load Complete "${searchQuery.trim()}" Guide Inside Our Website`}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleResetAllFilters}
+                    className="text-xs font-bold text-blue-700 underline cursor-pointer"
+                  >
+                    Clear all filters
+                  </button>
+                </div>
               </div>
             )}
 
